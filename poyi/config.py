@@ -40,7 +40,8 @@ class Settings:
     model: str = "claude-opus-5"
     fast_model: str = "claude-haiku-4-5"
     judge_model: str = "claude-sonnet-5"
-    effort: str = "medium"
+    effort: str = "low"          # conversation: fast and terse; the newest models are strong even here
+    deep_effort: str = "medium"  # briefs, reflections, the nightly pass
     max_tokens: int = 16000
     max_tool_rounds: int = 8
     user_name: str = ""
@@ -94,6 +95,7 @@ class Settings:
             fast_model=env.get("POYI_FAST_MODEL") or cls.fast_model,
             judge_model=env.get("POYI_JUDGE_MODEL") or cls.judge_model,
             effort=env.get("POYI_EFFORT") or cls.effort,
+            deep_effort=env.get("POYI_DEEP_EFFORT") or cls.deep_effort,
             max_tokens=int(env.get("POYI_MAX_TOKENS") or cls.max_tokens),
             max_tool_rounds=int(env.get("POYI_MAX_TOOL_ROUNDS") or cls.max_tool_rounds),
             user_name=env.get("POYI_USER", ""),
@@ -132,6 +134,12 @@ class Settings:
             telegram_token=env.get("TELEGRAM_BOT_TOKEN", ""),
             telegram_chat_id=env.get("POYI_TELEGRAM_CHAT_ID", ""),
         )
+
+    def deep(self) -> "Settings":
+        """The same settings with the deeper effort, for written pieces."""
+        from dataclasses import replace
+
+        return replace(self, effort=self.deep_effort)
 
     def ensure_home(self) -> Path:
         self.home.mkdir(parents=True, exist_ok=True)

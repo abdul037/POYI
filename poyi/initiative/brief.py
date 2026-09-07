@@ -40,7 +40,7 @@ def make_brief_fn(
     def brief(kind: str) -> str:
         prompt = PROMPTS.get(kind, PROMPTS["morning"])
         brain = Brain(
-            settings,
+            settings.deep(),
             client=client,
             tools=default_tools(settings, web=False),
             system=build_system_prompt(settings, memory=True, world=True),

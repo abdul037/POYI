@@ -153,3 +153,26 @@ def test_usage_reflect_and_eval_add_cli(tmp_path, monkeypatch, capsys):
     assert cli.main(["eval", "add", "--prompt", "hey", "--must", "short"]) == 0
     assert "added user-1" in capsys.readouterr().out
     assert cli.main(["eval", "add"]) == 1
+
+
+def test_judge_never_crashes_on_an_empty_verdict():
+    from types import SimpleNamespace
+
+    from poyi.evals.character import CASES, Verdict, judge
+
+    calls = []
+
+    def parse(**kw):
+        calls.append(1)
+        return SimpleNamespace(parsed_output=None, stop_reason="max_tokens")
+
+    client = SimpleNamespace(messages=SimpleNamespace(parse=parse))
+    verdict = judge(client, "claude-sonnet-5", CASES[0], "hi")
+    assert verdict == Verdict(passed=False, reason="judge gave no verdict (stop_reason max_tokens)") and len(calls) == 2
+
+    def boom(**kw):
+        raise RuntimeError("down")
+
+    assert judge(SimpleNamespace(messages=SimpleNamespace(parse=boom)), "m", CASES[0], "hi").reason.startswith("judge error")
+    good = SimpleNamespace(messages=SimpleNamespace(parse=lambda **kw: SimpleNamespace(parsed_output=Verdict(passed=True, reason="ok"))))
+    assert judge(good, "m", CASES[0], "hi").passed

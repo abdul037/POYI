@@ -31,7 +31,7 @@ def make_reflection_fn(settings: Settings, memory: MemoryStore, render_world: Ca
     def reflect() -> str:
         logs = "\n\n".join(f"{d.isoformat()}\n{text.strip()}" for d, text in reversed(memory.recent_logs(7))) or "(no logs)"
         decisions = "\n".join(f"{e.route:<7} {e.feedback or '-':<9} {e.title}" for e in recent_events() if e.route in ("speak", "mention")) or "(nothing raised)"
-        brain = Brain(settings, client=client, tools=default_tools(settings, web=False),
+        brain = Brain(settings.deep(), client=client, tools=default_tools(settings, web=False),
                       system=build_system_prompt(settings, memory=True, world=True),
                       context=render_memory_context(memory), turn_context=render_world)
         text = brain.reply(PROMPT.format(logs=logs, decisions=decisions)).strip()

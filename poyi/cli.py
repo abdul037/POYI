@@ -23,6 +23,7 @@ from poyi.world.mode import Override, parse_duration
 TOOL_LABELS = {
     "web_search": "searching",
     "web_fetch": "reading",
+    "code_execution": "working it out",
     "current_time": "checking the time",
     "calculate": "calculating",
     "memory": "remembering",

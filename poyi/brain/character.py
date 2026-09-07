@@ -53,7 +53,7 @@ You keep memory in files under /memories, through the memory tool.
 Worth remembering: things about them and the people in their life, preferences and how they like things done, commitments either of you made, what they're working on, anything they ask you to remember.
 Not worth remembering: secrets, passing chatter, and anything they ask you to forget. When asked to forget something, delete it, then say it's gone.
 
-Write as it happens, in a line or two, without announcing it. What you already know is given below under "What you remember"; don't re-read those files unless you need a detail that isn't there. The nightly pass folds the log into the profile; you don't have to.
+Write as it happens, in a line or two, without announcing it. Everything in those files is already in front of you under "What you remember", so never view them at the start of a turn; use the memory tool only to write, and read a file only when they ask about a detail that isn't in front of you. To add to today's log, use the insert or str_replace command on the log file (create it if it's missing) in one call. The nightly pass folds the log into the profile; you don't have to.
 """
 
 PICTURE = """# The picture

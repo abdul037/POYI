@@ -272,7 +272,8 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_USER` | | your name, so Poyi can use it |
 | `POYI_ADDRESS` | | how you like to be addressed, e.g. `sir` |
 | `POYI_MODEL` | `claude-opus-5` | the brain |
-| `POYI_EFFORT` | `medium` | `low` to `max`; lower is faster and cheaper |
+| `POYI_EFFORT` | `low` | conversation effort, `low` to `max`; lower is faster |
+| `POYI_DEEP_EFFORT` | `medium` | effort for briefs, reflections, and the nightly pass |
 | `POYI_FAST_MODEL` | `claude-haiku-4-5` | doctor's live check, later routing |
 | `POYI_JUDGE_MODEL` | `claude-sonnet-5` | grades the evals |
 | `POYI_WEB` | `true` | web search and fetch tools |

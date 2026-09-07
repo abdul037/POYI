@@ -75,6 +75,7 @@ def consolidate(
     response = client.messages.parse(
         model=settings.model,
         max_tokens=16000,
+        output_config={"effort": settings.deep_effort},
         system=SYSTEM.replace("{today}", today.isoformat()),
         messages=build_messages(store, today),
         output_format=Consolidation,

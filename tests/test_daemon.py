@@ -117,7 +117,10 @@ def test_mode_tick_and_stop(tmp_path):
         assert daemon.stop_event.is_set()
     finally:
         daemon.stop_event.set()
-    time.sleep(0.7)
+    for _ in range(60):  # the accept loop wakes every 0.5 s; give it up to 3 s to close and unlink
+        if not daemon.path.exists():
+            break
+        time.sleep(0.05)
     assert not alive(daemon.path)
 
 

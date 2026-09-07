@@ -103,20 +103,32 @@ JUDGE_SYSTEM = (
 )
 
 
-def judge(client: Any, model: str, case: Case, answer: str) -> Verdict:
+def judge(client: Any, model: str, case: Case, answer: str, *, attempts: int = 2) -> Verdict:
+    """Grade one answer. A judge that returns nothing usable counts as a fail, never a crash."""
     prompt = (
         f"User said: {case.prompt!r}\n\n{NAME} replied:\n{answer}\n\n"
         f"MUST: {case.must}\nMUST NOT: {case.must_not or '(nothing specific)'}\n\n"
         "Did the reply pass?"
     )
-    response = client.messages.parse(
-        model=model,
-        max_tokens=512,
-        system=JUDGE_SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
-        output_format=Verdict,
-    )
-    return response.parsed_output
+    last = "judge returned no verdict"
+    for _ in range(attempts):
+        try:
+            response = client.messages.parse(
+                model=model,
+                max_tokens=1024,
+                system=JUDGE_SYSTEM,
+                messages=[{"role": "user", "content": prompt}],
+                output_format=Verdict,
+            )
+        except Exception as exc:  # noqa: BLE001 - one bad judge call must not end the eval
+            last = f"judge error: {type(exc).__name__}: {exc}"
+            continue
+        verdict = getattr(response, "parsed_output", None)
+        if isinstance(verdict, Verdict):
+            return verdict
+        stop = getattr(response, "stop_reason", None)
+        last = f"judge gave no verdict (stop_reason {stop})"
+    return Verdict(passed=False, reason=last)
 
 
 def user_cases_path(settings: Settings):
