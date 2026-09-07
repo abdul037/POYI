@@ -79,6 +79,7 @@ class Settings:
     reflect_at: str = "18:00"
     telegram_token: str = ""                               # TELEGRAM_BOT_TOKEN
     telegram_chat_id: str = ""                             # POYI_TELEGRAM_CHAT_ID: the one chat allowed to talk
+    debug: bool = False                                    # POYI_DEBUG: log tool calls and results to stderr
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -133,6 +134,7 @@ class Settings:
             reflect_at=env.get("POYI_REFLECT_AT") or cls.reflect_at,
             telegram_token=env.get("TELEGRAM_BOT_TOKEN", ""),
             telegram_chat_id=env.get("POYI_TELEGRAM_CHAT_ID", ""),
+            debug=_truthy(env.get("POYI_DEBUG"), False),
         )
 
     def deep(self) -> "Settings":

@@ -121,3 +121,20 @@ def test_poyi_with_a_brain_records_the_reply():
 def test_poyi_refusal_becomes_the_refusal_line():
     brain, _ = make_brain([simple_turn("", stop_reason="refusal")])
     assert Poyi(brain=brain).reply("no") == REFUSAL_LINE
+
+
+def test_debug_logging_shows_tool_inputs_and_results(caplog):
+    import logging
+
+    from tests.fakes import FakeStream, final_message, tool_start
+
+    tool_use = SimpleNamespace(type="tool_use", id="t1", name="calculate", input={"expression": "2+2"})
+    first = FakeStream([tool_start("calculate")], final_message(stop_reason="tool_use", extra_blocks=[tool_use]))
+    tool_result = {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "4"}]}
+    second, _ = simple_turn("It's 4.")
+    brain, _ = make_brain([(first, tool_result), (second, None)])
+    with caplog.at_level(logging.DEBUG, logger="poyi.brain.agent"):
+        brain.reply("2+2?")
+    messages = [r.getMessage() for r in caplog.records]
+    assert any('tool_use calculate({"expression": "2+2"})' in m for m in messages)
+    assert any("result 4" in m for m in messages)

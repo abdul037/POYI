@@ -563,9 +563,19 @@ def consolidate_command(settings: Settings, dry_run: bool) -> int:
     return 0
 
 
+def configure_logging(settings: Settings) -> None:
+    import logging
+
+    if settings.debug:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(name)s: %(message)s", stream=sys.stderr)
+        for noisy in ("httpx", "httpcore", "anthropic", "urllib3"):
+            logging.getLogger(noisy).setLevel(logging.INFO)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     settings = Settings.from_env()
+    configure_logging(settings)
     if args.command == "doctor":
         return doctor(settings)
     if args.command == "memory":

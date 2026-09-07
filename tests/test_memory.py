@@ -233,3 +233,12 @@ def test_consolidate_cli_prints_result(tmp_path, monkeypatch, capsys):
     assert cli.main(["consolidate", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "Say hi." in out and "- gone" in out and "dry run" in out
+
+
+def test_tool_insert_creates_a_missing_log_with_a_header(tmp_path):
+    tool = PoyiMemoryTool(make_store(tmp_path))
+    out = tool.call({"command": "insert", "path": "/memories/log/2026-09-08.md", "insert_line": 5, "insert_text": "- 09:00 first thing"})
+    assert out.startswith("Inserted 1 line(s)")
+    assert (tmp_path / "memory/log/2026-09-08.md").read_text() == "# 2026-09-08\n\n- 09:00 first thing\n"
+    out = tool.call({"command": "insert", "path": "/memories/notes/scratch.md", "insert_line": 0, "insert_text": "top"})
+    assert out.startswith("Inserted") and (tmp_path / "memory/notes/scratch.md").read_text() == "top\n"

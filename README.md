@@ -280,6 +280,7 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_COMPACTION` | `true` | server-side conversation compaction |
 | `POYI_FALLBACKS` | `true` | server-side refusal fallbacks |
 | `POYI_HOME` | `~/.poyi` | where memory and state live |
+| `POYI_DEBUG` | `false` | log every tool call and result to stderr |
 | `POYI_HOME_SSID` | | your home Wi-Fi name, for home-or-away |
 | `POYI_QUIET_HOURS` | `23:00-07:00` | when Poyi assumes you're asleep if idle |
 | `POYI_FOCUS_AFTER_MIN` | `25` | minutes of steady work before mode becomes focus |

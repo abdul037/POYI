@@ -151,6 +151,8 @@ class Brain:
             tool_response = runner.generate_tool_call_response()
             if tool_response is not None:
                 self.messages.append(tool_response)
+            if log.isEnabledFor(logging.DEBUG):
+                self._debug_tools(final, tool_response, rounds)
             if getattr(final, "stop_reason", None) == "refusal":
                 refused = True
         if refused:
@@ -162,6 +164,26 @@ class Brain:
             "rounds": rounds,
         }
         yield Event("done")
+
+    @staticmethod
+    def _debug_tools(final: Any, tool_response: Any, round_number: int) -> None:
+        """With POYI_DEBUG on: what each tool was asked and what it answered, trimmed."""
+        import json
+
+        for block in getattr(final, "content", []) or []:
+            kind = getattr(block, "type", "")
+            if kind in ("tool_use", "server_tool_use"):
+                try:
+                    shown = json.dumps(getattr(block, "input", {}), default=str)[:400]
+                except (TypeError, ValueError):
+                    shown = str(getattr(block, "input", ""))[:400]
+                log.debug("round %d: %s %s(%s)", round_number, kind, getattr(block, "name", "?"), shown)
+        if tool_response:
+            for item in tool_response.get("content", []) or []:
+                if isinstance(item, dict) and item.get("type") == "tool_result":
+                    content = item.get("content", "")
+                    text = content if isinstance(content, str) else f"({type(content).__name__} of {len(content)})"
+                    log.debug("round %d: result %s", round_number, str(text)[:300].replace("\n", " | "))
 
     def forget_conversation(self) -> None:
         self.messages.clear()

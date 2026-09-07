@@ -98,10 +98,13 @@ class PoyiMemoryTool(BetaAbstractMemoryTool):
         def go(path: str, line: int, text: str) -> str:
             target = self._resolve(path)
             if not target.is_file():
-                raise FileNotFoundError(f"{path} does not exist")
+                # A missing file is created rather than refused: the common case is
+                # the first line of today's log.
+                target.parent.mkdir(parents=True, exist_ok=True)
+                header = f"# {target.stem}\n\n" if target.parent.name == "log" else ""
+                target.write_text(header)
             lines = target.read_text().splitlines()
-            if line < 0 or line > len(lines):
-                raise ValueError(f"insert_line must be between 0 and {len(lines)}")
+            line = max(0, min(line, len(lines)))  # clamp rather than refuse; the model often guesses the length
             new_lines = text.splitlines()
             lines[line:line] = new_lines
             target.write_text("\n".join(lines) + "\n")
