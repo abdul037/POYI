@@ -49,6 +49,10 @@ class Settings:
     quiet_hours: str = "23:00-07:00"
     focus_after_min: int = 25
     world_refresh_s: int = 60
+    notify: bool = True
+    brief_morning: str = "08:00"
+    brief_evening: str = "21:30"
+    tick_s: int = 30
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -77,6 +81,10 @@ class Settings:
             quiet_hours=env.get("POYI_QUIET_HOURS") or cls.quiet_hours,
             focus_after_min=int(env.get("POYI_FOCUS_AFTER_MIN") or cls.focus_after_min),
             world_refresh_s=int(env.get("POYI_WORLD_REFRESH_S") or cls.world_refresh_s),
+            notify=_truthy(env.get("POYI_NOTIFY"), True),
+            brief_morning=env.get("POYI_BRIEF_MORNING") or cls.brief_morning,
+            brief_evening=env.get("POYI_BRIEF_EVENING") or cls.brief_evening,
+            tick_s=int(env.get("POYI_TICK_S") or cls.tick_s),
         )
 
     def ensure_home(self) -> Path:

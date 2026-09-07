@@ -14,6 +14,8 @@ from poyi.core import Poyi
 from poyi.identity import ACRONYM, FULL_FORM, NAME
 from poyi.memory import MemoryStore
 from poyi.memory.consolidate import consolidate
+from poyi.initiative.events import ROUTES
+from poyi.initiative.policy import describe_routes
 from poyi.world import MODES, PLACES, Refresher, WorldStore, default_sensors
 from poyi.world.mode import Override, parse_duration
 
@@ -24,6 +26,7 @@ TOOL_LABELS = {
     "calculate": "calculating",
     "memory": "remembering",
     "update_world": "noting that",
+    "interruption_feedback": "noting that",
 }
 
 
@@ -53,6 +56,18 @@ def build_parser() -> argparse.ArgumentParser:
     setter = wld_sub.add_parser("set", help="set a field by hand, e.g. `set place home`")
     setter.add_argument("field", choices=["place", "activity"])
     setter.add_argument("value")
+    sub.add_parser("tick", help="one pass of the initiative loop: sensors, watchers, decisions")
+    watch = sub.add_parser("watch", help="run the initiative loop in the foreground; Ctrl-C to stop")
+    watch.add_argument("--interval", type=int, default=None, help="seconds between ticks")
+    ini = sub.add_parser("initiative", help=f"what {NAME} decided to bring up, and why")
+    ini_sub = ini.add_subparsers(dest="initiative_command")
+    ini_sub.add_parser("pending", help="things waiting for the next pause")
+    ini_sub.add_parser("weights", help="what it has learned about interrupting you")
+    fb = ini_sub.add_parser("feedback", help="tell it how an interruption landed")
+    fb.add_argument("event_id")
+    fb.add_argument("verdict", choices=["not_now", "thanks"])
+    br = sub.add_parser("brief", help="write the morning brief or evening wind-down now")
+    br.add_argument("kind", choices=["morning", "evening"])
     con = sub.add_parser("consolidate", help="run the nightly memory pass now")
     con.add_argument("--dry-run", action="store_true", help="show what would change without writing")
     ev = sub.add_parser("eval", help="run an eval set against the live model")
@@ -231,6 +246,80 @@ def world_command(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def print_events(events) -> None:
+    if not events:
+        print("(nothing)")
+        return
+    for e in events:
+        stamp = e.at[11:16] if len(e.at) >= 16 else e.at
+        fb = f"  [{e.feedback}]" if e.feedback else ""
+        print(f"{stamp}  {e.route:<7} {e.score:.2f}  [{e.id}] {e.title}{fb}")
+        if e.reason:
+            print(f"                       {e.reason}")
+
+
+def tick_command(being: Poyi) -> int:
+    if being.initiative is None:
+        print("initiative not available")
+        return 1
+    handled = being.initiative.tick()
+    print(f"{len(handled)} event(s)")
+    print_events(handled)
+    return 0
+
+
+def watch_command(being: Poyi, interval: int) -> int:
+    import time
+
+    if being.initiative is None:
+        print("initiative not available")
+        return 1
+    print(f"watching every {interval}s; Ctrl-C to stop")
+    try:
+        while True:
+            for e in being.initiative.tick():
+                print(f"{datetime.now():%H:%M}  {e.route:<7} [{e.id}] {e.title}")
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print()
+    return 0
+
+
+def initiative_command(being: Poyi, args: argparse.Namespace) -> int:
+    ini = being.initiative
+    if ini is None:
+        print("initiative not available")
+        return 1
+    if args.initiative_command == "pending":
+        print_events(ini.log.pending_mentions())
+        return 0
+    if args.initiative_command == "weights":
+        if not ini.weights.data:
+            print("(nothing learned yet)")
+        for key, value in sorted(ini.weights.data.items()):
+            print(f"{value:+.2f}  {key}")
+        return 0
+    if args.initiative_command == "feedback":
+        event = ini.feedback(args.event_id, args.verdict)
+        if event is None:
+            print(f"no event with id {args.event_id}")
+            return 1
+        print(f"noted {args.verdict} for [{event.id}] {event.title}")
+        return 0
+    print("routes: " + "; ".join(f"{k} = {v}" for k, v in describe_routes().items()))
+    print()
+    print_events(ini.recent(20))
+    return 0
+
+
+def brief_command(being: Poyi, kind: str) -> int:
+    if being.initiative is None or being.initiative.brief is None:
+        print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
+        return 1
+    print(being.initiative.brief(kind))
+    return 0
+
+
 def consolidate_command(settings: Settings, dry_run: bool) -> int:
     if not has_credentials():
         print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
@@ -267,6 +356,14 @@ def main(argv: list[str] | None = None) -> int:
 
         return run_character(settings, limit=args.limit, verbose=args.verbose)
     being = Poyi.default(settings)
+    if args.command == "tick":
+        return tick_command(being)
+    if args.command == "watch":
+        return watch_command(being, args.interval or settings.tick_s)
+    if args.command == "initiative":
+        return initiative_command(being, args)
+    if args.command == "brief":
+        return brief_command(being, args.kind)
     if args.command == "chat":
         return chat(being)
     if args.command == "say":

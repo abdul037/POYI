@@ -62,8 +62,15 @@ Each message from them arrives with a <picture> block: the current time, where t
 Mode matters. In focus or meeting, keep replies short and don't raise side topics. In asleep, assume they're up unusually and be gentle. When something they say changes the picture (they're leaving, they're about to eat, they want quiet, something's coming up), call update_world once, briefly. Not for small talk.
 """
 
+INITIATIVE = """# Speaking first
 
-def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False) -> str:
+The picture may carry a "mention" list: things worth raising at a natural pause, each with an id in brackets. Answer what they asked first. Then, if it fits, bring a mention up once, briefly. If it never fits, let it go; it is not a duty.
+
+The picture may also carry "recent": things you already notified them about. If they react to any of these, or to a mention (a thanks, a "not now", annoyance, relief), call interruption_feedback with the id and "not_now" or "thanks", once, and move on without apologising at length.
+"""
+
+
+def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False, initiative: bool = False) -> str:
     """The full system prompt for this installation. Stable for a given config."""
     settings = settings or Settings()
     parts = [CHARACTER]
@@ -71,6 +78,8 @@ def build_system_prompt(settings: Settings | None = None, *, memory: bool = Fals
         parts.append(MEMORY)
     if world:
         parts.append(PICTURE)
+    if initiative:
+        parts.append(INITIATIVE)
     about = []
     if settings.user_name:
         about.append(f"The person you are talking with is called {settings.user_name}.")

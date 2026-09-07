@@ -101,6 +101,41 @@ poyi world mode off              # back to inferring
 poyi world set place home        # correct a field by hand
 ```
 
+## Speaking first (Phase 4)
+
+Initiative is delivered as desktop notifications and text first, on purpose,
+so the interruption policy gets tuned before Poyi has a voice to be annoying
+with. Every tick, watchers turn the picture and the machine into events;
+the policy scores each one on importance, time pressure, your mode, and what
+it has learned; then it routes:
+
+| Route | What happens |
+|---|---|
+| speak | a notification now (and a spoken line, once there is a voice) |
+| mention | held until your next message, then raised once at a natural pause |
+| note | left in the picture and the next brief, quietly |
+| log | recorded only |
+
+Hard rules: nothing while you're asleep; nothing in a meeting unless it is
+both important and due within ten minutes. Focus raises the bar. Your "not
+now" and "thanks", said to Poyi or given with `poyi initiative feedback`,
+adjust the weights per source and per mode; a notification nobody reacts to
+for 30 minutes counts, slightly, as unwanted.
+
+Watchers today: things in `next` at ten minutes out, promises still open
+(one nudge a day, mid-morning), low battery, the morning brief, and the
+evening wind-down. The briefs are written by Poyi from memory and the picture.
+
+```bash
+poyi tick                              # one pass: sensors, watchers, decisions
+poyi watch --interval 30               # keep going in the foreground
+poyi initiative                        # what it decided, and why
+poyi initiative pending                # waiting for the next pause
+poyi initiative feedback <id> not_now  # or thanks
+poyi initiative weights                # what it has learned
+poyi brief morning                     # or evening; needs credentials
+```
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -121,6 +156,10 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_QUIET_HOURS` | `23:00-07:00` | when Poyi assumes you're asleep if idle |
 | `POYI_FOCUS_AFTER_MIN` | `25` | minutes of steady work before mode becomes focus |
 | `POYI_WORLD_REFRESH_S` | `60` | how often sensors run, at most |
+| `POYI_NOTIFY` | `true` | desktop notifications |
+| `POYI_BRIEF_MORNING` | `08:00` | when the morning brief fires |
+| `POYI_BRIEF_EVENING` | `21:30` | when the evening wind-down fires |
+| `POYI_TICK_S` | `30` | seconds between ticks in `poyi watch` |
 
 ## Layout
 
@@ -140,5 +179,9 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/world/sensors.py` | clock, active app, idle, place, threads |
 | `poyi/world/mode.py` | mode inference and manual overrides |
 | `poyi/world/refresh.py` | runs sensors, applies brain write-backs, persists |
+| `poyi/initiative/watchers.py` | what turns the picture into events |
+| `poyi/initiative/policy.py` | scoring, hard rules, learned weights |
+| `poyi/initiative/loop.py` | the tick: decide, deliver, learn |
+| `poyi/initiative/brief.py` | the morning brief and evening wind-down |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |

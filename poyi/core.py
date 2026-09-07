@@ -11,6 +11,9 @@ from poyi.brain.tools import default_tools
 from poyi.config import Settings, has_credentials
 from poyi.identity import INTRO, NAME
 from poyi.memory import MemoryStore, PoyiMemoryTool, render_memory_context
+from poyi.initiative import Initiative, Notifier, default_watchers, make_model_tiebreak
+from poyi.initiative.brief import make_brief_fn
+from poyi.initiative.tool import make_feedback_tool
 from poyi.world import Refresher, WorldStore, default_sensors
 from poyi.world.tool import make_update_world_tool
 
@@ -31,6 +34,7 @@ class Poyi:
     brain: Brain | None = None
     memory: MemoryStore | None = None
     world: Refresher | None = None
+    initiative: Initiative | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
 
     @classmethod
@@ -39,17 +43,37 @@ class Poyi:
         settings = settings or Settings.from_env()
         memory = MemoryStore(settings.home / "memory").ensure()
         world = Refresher(WorldStore(settings.home), default_sensors(settings, memory.threads), settings)
-        if not has_credentials():
-            return cls(brain=None, memory=memory, world=world)
+        notifier = Notifier(desktop=settings.notify)
+        awake = has_credentials()
+        client = None
+        brief = tiebreak = None
+        if awake:
+            import anthropic
+
+            client = anthropic.Anthropic()
+            brief = make_brief_fn(settings, memory, world.render, client=client, root=settings.home)
+            tiebreak = make_model_tiebreak(client, settings.fast_model)
+        initiative = Initiative(settings.home, world, default_watchers(settings, memory.threads), notifier,
+                                tiebreak=tiebreak, brief=brief)
+        if not awake:
+            return cls(brain=None, memory=memory, world=world, initiative=initiative)
         world.refresh(force=True)
+
+        def picture() -> str:
+            world.refresh()
+            extra = initiative.render_for_picture()
+            return world.render() + ("\n" + extra if extra else "")
+
         brain = Brain(
             settings,
-            tools=[*default_tools(settings), PoyiMemoryTool(memory), make_update_world_tool(world.note)],
-            system=build_system_prompt(settings, memory=True, world=True),
+            client=client,
+            tools=[*default_tools(settings), PoyiMemoryTool(memory), make_update_world_tool(world.note),
+                   make_feedback_tool(initiative.feedback)],
+            system=build_system_prompt(settings, memory=True, world=True, initiative=True),
             context=render_memory_context(memory),
-            turn_context=lambda: (world.refresh(), world.render())[1],
+            turn_context=picture,
         )
-        return cls(brain=brain, memory=memory, world=world)
+        return cls(brain=brain, memory=memory, world=world, initiative=initiative)
 
     @property
     def awake(self) -> bool:
@@ -77,6 +101,8 @@ class Poyi:
         if not text and refused:
             text = REFUSAL_LINE
         self.history.append((NAME.lower(), text))
+        if self.initiative is not None:
+            self.initiative.mark_shown_mentioned()
 
     def reply(self, message: str) -> str:
         for _ in self.stream(message):
