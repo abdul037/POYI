@@ -74,6 +74,8 @@ class Settings:
     stt_command: str = ""                                  # for stt=command: a template with {wav}
     vad_threshold: float = 500.0
     consolidate_at: str = "03:00"                          # when the daemon runs the nightly pass
+    reflect_weekday: int = 6                               # Monday is 0; Sunday is 6
+    reflect_at: str = "18:00"
     telegram_token: str = ""                               # TELEGRAM_BOT_TOKEN
     telegram_chat_id: str = ""                             # POYI_TELEGRAM_CHAT_ID: the one chat allowed to talk
 
@@ -125,6 +127,8 @@ class Settings:
             stt_command=env.get("POYI_STT_COMMAND", ""),
             vad_threshold=float(env.get("POYI_VAD_THRESHOLD") or cls.vad_threshold),
             consolidate_at=env.get("POYI_CONSOLIDATE_AT") or cls.consolidate_at,
+            reflect_weekday=int(env.get("POYI_REFLECT_WEEKDAY") or cls.reflect_weekday),
+            reflect_at=env.get("POYI_REFLECT_AT") or cls.reflect_at,
             telegram_token=env.get("TELEGRAM_BOT_TOKEN", ""),
             telegram_chat_id=env.get("POYI_TELEGRAM_CHAT_ID", ""),
         )

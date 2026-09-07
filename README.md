@@ -37,7 +37,23 @@ Credentials: set `ANTHROPIC_API_KEY` in `.env` or `~/.poyi/env`, or run
 `ant auth login` if you have the Anthropic CLI. Without one, Poyi says so
 instead of pretending.
 
-## What works today (Phase 1: character)
+## What works today
+
+All eight phases of the plan have a first implementation. In order of what
+makes it a companion rather than a chatbot:
+
+| Phase | What | Section |
+|---|---|---|
+| 1 | a character with a point of view | below |
+| 2 | memory that compounds and deliberately forgets | Memory |
+| 3 | the picture: what you're doing right now | The picture |
+| 4 | speaking first, and learning when not to | Speaking first |
+| 5 | hands with judgment | Hands with judgment |
+| 6 | a voice, local by default | Voice |
+| 7 | always on, on your phone, in your menubar | Presence |
+| 8 | the relationship over years | The relationship |
+
+### Phase 1: character
 
 - Claude Opus 5 through the SDK tool runner, streaming, with adaptive thinking
   and a tunable effort level.
@@ -217,6 +233,36 @@ picture says you're away, notifications go to the phone too.
 Later: a Raspberry Pi with a microphone and speaker in another room, running
 only the ears and the voice, talking to the daemon over the network.
 
+## The relationship (Phase 8)
+
+The part no one else builds.
+
+- **Weekly reflection**, Sunday evening by default: what Poyi noticed this
+  week, what it got wrong (your "not now"s and the notifications you
+  ignored count against it), and what it's still holding for you. Two
+  minutes to read, and it asks for "less of that" or "more of that".
+- **Goals with check-ins**: a goal in `threads.md` tagged
+  `(check-in: 2026-10-01)` comes back to you on that day. The nightly pass
+  gives goals a date if they lack one.
+- **People**: profile lines tagged `(birthday: 09-09)` get a word two days
+  out; `(last spoke: 2026-08-01)` gets one gentle line after a month of
+  silence, once a month at most. Poyi updates "last spoke" when you mention
+  talking to someone.
+- **Care**: if two weeks of use look like they are replacing people rather
+  than supporting you (many heavy days or a lot after midnight, and almost
+  no one else in the logs), Poyi says so once, kindly, and not again for a
+  month. The heuristic is deliberately conservative and lives in
+  `poyi/relationship/watchers.py`.
+- **Evals that grow**: when Poyi gets something wrong, turn it into a case
+  and the character eval carries it forever.
+- **Usage**: every turn is recorded with latency and an estimated cost.
+
+```bash
+poyi reflect                                  # the weekly reflection, now
+poyi usage --days 14                          # turns, first-token latency, cost by day
+poyi eval add --prompt "what's the weather" --must "says it can't see the weather yet" --must-not "invents a forecast"
+```
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -257,6 +303,7 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_STT_COMMAND` | | for `command`: a template with `{wav}` |
 | `POYI_VAD_THRESHOLD` | `500` | microphone energy that counts as speech; raise it in a noisy room |
 | `POYI_CONSOLIDATE_AT` | `03:00` | when the daemon runs the nightly pass |
+| `POYI_REFLECT_WEEKDAY`, `POYI_REFLECT_AT` | `6`, `18:00` | the weekly reflection (Monday is 0) |
 | `TELEGRAM_BOT_TOKEN`, `POYI_TELEGRAM_CHAT_ID` | | the phone front |
 
 ## Layout
@@ -298,5 +345,8 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/daemon/launchd.py` | start at login |
 | `poyi/fronts/telegram.py` | the phone |
 | `poyi/fronts/menubar.py` | the menubar |
-| `poyi/evals/character.py` | the character eval set |
+| `poyi/relationship/usage.py` | per-turn latency and cost |
+| `poyi/relationship/watchers.py` | goals, people, the weekly moment, care |
+| `poyi/relationship/reflection.py` | the Sunday reflection |
+| `poyi/evals/character.py` | the character eval set, plus your own cases |
 | `tests/` | fast tests with a fake client |

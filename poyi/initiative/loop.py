@@ -81,6 +81,7 @@ class Initiative:
         self.notifier = notifier
         self.tiebreak = tiebreak
         self.brief = brief
+        self.reflection: Callable[[], str] | None = None  # set when the brain is awake
         self.shown: list[str] = []  # mention ids included in the last picture
 
     # --- the tick ------------------------------------------------------------------
@@ -125,6 +126,11 @@ class Initiative:
                 event.body = self.brief(kind)
             except Exception as exc:  # noqa: BLE001
                 event.body = f"(brief failed: {type(exc).__name__}: {exc})"
+        if event.source == "reflection" and self.reflection and event.route in ("speak", "mention"):
+            try:
+                event.body = self.reflection()
+            except Exception as exc:  # noqa: BLE001
+                event.body = f"(reflection failed: {type(exc).__name__}: {exc})"
         if event.route == "speak":
             body = event.body.splitlines()[0] if event.body else ""
             now_state = self.refresher.world.now

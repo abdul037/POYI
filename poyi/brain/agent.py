@@ -8,6 +8,7 @@ inspected, saved, and (later) fed to memory and the world model.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator
 
@@ -51,6 +52,7 @@ class Brain:
         self.turn_context = turn_context  # fresh each turn, e.g. the world; never cached
         self.messages: list[dict[str, Any]] = []
         self.last_usage: Any | None = None
+        self.last_turn: dict[str, int] = {}  # timing and token totals for the most recent turn
 
     @property
     def client(self) -> Any:
@@ -116,15 +118,24 @@ class Brain:
         return "".join(e.data for e in self.stream(text) if e.kind == "text")
 
     def stream(self, text: str) -> Iterator[Event]:
+        from poyi.relationship.usage import usage_from_message
+
         self.messages.append({"role": "user", "content": text})
+        started = time.monotonic()
+        first_text: float | None = None
+        totals = [0, 0, 0, 0]
+        rounds = 0
         runner = self.client.beta.messages.tool_runner(**self.request_params())
         refused = False
         for stream in runner:
+            rounds += 1
             for event in stream:
                 kind = getattr(event, "type", None)
                 if kind == "content_block_delta":
                     delta = event.delta
                     if getattr(delta, "type", None) == "text_delta":
+                        if first_text is None:
+                            first_text = time.monotonic()
                         yield Event("text", delta.text)
                 elif kind == "content_block_start":
                     block = event.content_block
@@ -132,6 +143,9 @@ class Brain:
                         yield Event("tool", block.name)
             final = stream.get_final_message()
             self.last_usage = getattr(final, "usage", None)
+            if self.last_usage is not None:
+                for i, n in enumerate(usage_from_message(self.last_usage)):
+                    totals[i] += n
             # Mirror the full content so tool_use and compaction blocks survive.
             self.messages.append({"role": "assistant", "content": final.content})
             tool_response = runner.generate_tool_call_response()
@@ -141,6 +155,12 @@ class Brain:
                 refused = True
         if refused:
             yield Event("refusal", REFUSAL_LINE)
+        now = time.monotonic()
+        self.last_turn = {
+            "input_tokens": totals[0], "output_tokens": totals[1], "cache_read": totals[2], "cache_write": totals[3],
+            "first_token_ms": int(((first_text or now) - started) * 1000), "total_ms": int((now - started) * 1000),
+            "rounds": rounds,
+        }
         yield Event("done")
 
     def forget_conversation(self) -> None:

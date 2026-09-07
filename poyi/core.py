@@ -11,6 +11,7 @@ from poyi.brain.tools import default_tools
 from poyi.config import Settings, has_credentials
 from poyi.identity import INTRO, NAME
 from poyi.memory import MemoryStore, PoyiMemoryTool, render_memory_context
+from poyi.relationship import CareWatcher, GoalsWatcher, PeopleWatcher, Turn, UsageLog, WeeklyWatcher, make_reflection_fn
 from poyi.hands import Hands, build_hands
 from poyi.hands.registry import Confirmer
 from poyi.initiative import Initiative, Notifier, default_watchers, make_model_tiebreak
@@ -41,6 +42,7 @@ class Poyi:
     history: list[tuple[str, str]] = field(default_factory=list)
 
     speaker: Any | None = None
+    usage: UsageLog | None = None
 
     @classmethod
     def default(cls, settings: Settings | None = None, *, confirmer: Confirmer | None = None,
@@ -71,10 +73,20 @@ class Poyi:
             client = anthropic.Anthropic()
             brief = make_brief_fn(settings, memory, world.render, client=client, root=settings.home)
             tiebreak = make_model_tiebreak(client, settings.fast_model)
-        initiative = Initiative(settings.home, world, [*default_watchers(settings, memory.threads), *hands.watchers],
+        usage = UsageLog(settings.home / "usage.jsonl")
+        relationship = [
+            GoalsWatcher(memory.threads),
+            PeopleWatcher(memory.profile),
+            WeeklyWatcher(weekday=settings.reflect_weekday, at=settings.reflect_at),
+            CareWatcher(by_day=usage.by_day, read_logs=memory.recent_logs),
+        ]
+        initiative = Initiative(settings.home, world,
+                                [*default_watchers(settings, memory.threads), *hands.watchers, *relationship],
                                 notifier, tiebreak=tiebreak, brief=brief)
+        if awake:
+            initiative.reflection = make_reflection_fn(settings, memory, world.render, initiative.recent, client=client, root=settings.home)
         if not awake:
-            return cls(brain=None, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker)
+            return cls(brain=None, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker, usage=usage)
         world.refresh(force=True)
 
         def picture() -> str:
@@ -91,7 +103,7 @@ class Poyi:
             context=render_memory_context(memory),
             turn_context=picture,
         )
-        return cls(brain=brain, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker)
+        return cls(brain=brain, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker, usage=usage)
 
     @property
     def awake(self) -> bool:
@@ -121,6 +133,11 @@ class Poyi:
         self.history.append((NAME.lower(), text))
         if self.initiative is not None:
             self.initiative.mark_shown_mentioned()
+        if self.usage is not None and self.brain.last_turn:
+            from datetime import datetime
+
+            self.usage.record(Turn(at=datetime.now().isoformat(timespec="seconds"), model=self.brain.settings.model,
+                                   **self.brain.last_turn))
 
     def reply(self, message: str) -> str:
         for _ in self.stream(message):

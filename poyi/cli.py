@@ -108,10 +108,16 @@ def build_parser() -> argparse.ArgumentParser:
     br.add_argument("kind", choices=["morning", "evening"])
     con = sub.add_parser("consolidate", help="run the nightly memory pass now")
     con.add_argument("--dry-run", action="store_true", help="show what would change without writing")
-    ev = sub.add_parser("eval", help="run an eval set against the live model")
-    ev.add_argument("suite", choices=["character"], help="which eval set")
+    ev = sub.add_parser("eval", help="run an eval set against the live model, or add a case")
+    ev.add_argument("suite", choices=["character", "add"], help="which eval set, or `add` a case from a correction")
     ev.add_argument("--limit", type=int, default=None, help="run only the first N cases")
     ev.add_argument("--verbose", action="store_true", help="print every reply")
+    ev.add_argument("--prompt", help="for add: what was said")
+    ev.add_argument("--must", help="for add: what the reply must do")
+    ev.add_argument("--must-not", default="", help="for add: what it must not do")
+    us = sub.add_parser("usage", help="turns, latency, and cost by day")
+    us.add_argument("--days", type=int, default=7)
+    sub.add_parser("reflect", help="write the weekly reflection now")
     return parser
 
 
@@ -503,6 +509,31 @@ def voice_command(settings: Settings, args: argparse.Namespace) -> int:
     return loop.run_push_to_talk()
 
 
+def usage_command(settings: Settings, days: int) -> int:
+    from poyi.relationship import UsageLog
+
+    rows = UsageLog(settings.home / "usage.jsonl").by_day(days)
+    if not rows:
+        print("(no turns recorded yet)")
+        return 0
+    print(f"{'day':<12}{'turns':>6}{'first token':>13}{'total':>9}{'cost':>9}")
+    total_cost = total_turns = 0
+    for day, v in rows.items():
+        print(f"{day:<12}{int(v['turns']):>6}{int(v['first_ms']):>11} ms{int(v['total_ms']):>7} ms{v['cost']:>9.3f}")
+        total_cost += v["cost"]
+        total_turns += int(v["turns"])
+    print(f"{'total':<12}{total_turns:>6}{'':>13}{'':>9}{total_cost:>9.3f}  (USD, estimated)")
+    return 0
+
+
+def reflect_command(being: Poyi) -> int:
+    if being.initiative is None or being.initiative.reflection is None:
+        print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
+        return 1
+    print(being.initiative.reflection())
+    return 0
+
+
 def brief_command(being: Poyi, kind: str) -> int:
     if being.initiative is None or being.initiative.brief is None:
         print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
@@ -567,9 +598,18 @@ def main(argv: list[str] | None = None) -> int:
             render(client.say(" ".join(args.text), confirm=(lambda d: True) if args.yes else None))
             return 0
     if args.command == "eval":
-        from poyi.evals.character import run as run_character
+        from poyi.evals.character import add_user_case, run as run_character
 
+        if args.suite == "add":
+            if not (args.prompt and args.must):
+                print("give --prompt and --must")
+                return 1
+            case = add_user_case(settings, args.prompt, args.must, args.must_not)
+            print(f"added {case.id}: {case.prompt!r}")
+            return 0
         return run_character(settings, limit=args.limit, verbose=args.verbose)
+    if args.command == "usage":
+        return usage_command(settings, args.days)
     if args.command == "chat":
         confirmer = PromptConfirmer()
     elif args.command == "say" and args.yes:
@@ -589,6 +629,8 @@ def main(argv: list[str] | None = None) -> int:
         return initiative_command(being, args)
     if args.command == "brief":
         return brief_command(being, args.kind)
+    if args.command == "reflect":
+        return reflect_command(being)
     if args.command == "chat":
         return chat(being)
     if args.command == "say":

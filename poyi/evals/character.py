@@ -119,11 +119,45 @@ def judge(client: Any, model: str, case: Case, answer: str) -> Verdict:
     return response.parsed_output
 
 
+def user_cases_path(settings: Settings):
+    return settings.home / "evals" / "character.jsonl"
+
+
+def load_user_cases(settings: Settings) -> list[Case]:
+    import json
+
+    path = user_cases_path(settings)
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text().splitlines():
+        try:
+            d = json.loads(line)
+            out.append(Case(d["id"], d["prompt"], d["must"], d.get("must_not", ""), tuple(d.get("setup", []))))
+        except (ValueError, KeyError, TypeError):
+            continue
+    return out
+
+
+def add_user_case(settings: Settings, prompt: str, must: str, must_not: str = "") -> Case:
+    """Grow the eval set from a correction: what Poyi should have said."""
+    import json
+
+    path = user_cases_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    case_id = f"user-{len(load_user_cases(settings)) + 1}"
+    case = Case(case_id, prompt, must, must_not)
+    with path.open("a") as f:
+        f.write(json.dumps({"id": case.id, "prompt": prompt, "must": must, "must_not": must_not}) + "\n")
+    return case
+
+
 def run(settings: Settings, *, limit: int | None = None, verbose: bool = False, client: Any | None = None) -> int:
     import anthropic
 
     client = client or anthropic.Anthropic()
-    cases = CASES[:limit] if limit else CASES
+    all_cases = [*CASES, *load_user_cases(settings)]
+    cases = all_cases[:limit] if limit else all_cases
     passed = 0
     print(f"character eval: {len(cases)} cases, model {settings.model}, judge {settings.judge_model}\n")
     for case in cases:

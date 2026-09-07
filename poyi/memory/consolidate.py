@@ -30,11 +30,12 @@ Rules for the profile:
 - Standing facts only: who they are, the people who matter to them, preferences, how they like things done. One line per fact under the existing headings.
 - Every fact line ends with (seen: {{today}}) if today's log reinforced it, otherwise keep its existing (seen: ...) date unchanged. New facts get (seen: {{today}}).
 - Keep any line marked (keep) exactly as it is.
+- Keep (birthday: MM-DD) and (last spoke: YYYY-MM-DD) tags on people; if today's log shows they spoke to someone, set that person's (last spoke: {{today}}).
 - Rewrite, merge, or tighten lines; do not pad. Under 2,000 words in total.
 - Never include secrets: passwords, card numbers, keys, or anything they asked to forget.
 
 Rules for threads:
-- Under Promised, Waiting on, Working on, Goals. Add what the log opened, close what it resolved, and give goals a check-in date if they lack one.
+- Under Promised, Waiting on, Working on, Goals. Add what the log opened, close what it resolved, and give goals a (check-in: YYYY-MM-DD) tag if they lack one, one to four weeks out.
 
 The tomorrow note is at most five lines: what to bring up, what to watch for, what was left unresolved. Plain language. No headings.
 
