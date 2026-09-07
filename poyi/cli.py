@@ -54,10 +54,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"{NAME} {__version__}")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("intro", help=f"print how {NAME} introduces itself (default)")
-    sub.add_parser("chat", help=f"talk to {NAME} in a loop; Ctrl-D or Ctrl-C to leave")
+    chat_p = sub.add_parser("chat", help=f"talk to {NAME} in a loop; Ctrl-D or Ctrl-C to leave")
+    chat_p.add_argument("--local", action="store_true", help="don't go through the daemon even if it's running")
     say = sub.add_parser("say", help=f"send one message to {NAME} and print the reply")
     say.add_argument("text", nargs="+", help="what to say")
     say.add_argument("--yes", action="store_true", help="approve confirm-tier actions without asking")
+    say.add_argument("--local", action="store_true", help="don't go through the daemon even if it's running")
+    sub.add_parser("daemon", help=f"run {NAME} always-on: ticks, the nightly pass, the socket, the phone")
+    sub.add_parser("status", help="is the daemon up, and what is it doing")
+    sub.add_parser("stop", help="stop the running daemon")
+    sub.add_parser("install", help="start the daemon at login (a launchd user agent)")
+    sub.add_parser("uninstall", help="remove the launchd user agent")
+    sub.add_parser("menubar", help="the menubar app (needs rumps)")
+    sub.add_parser("telegram", help="run the Telegram front on its own, without the daemon")
     sub.add_parser("doctor", help="check credentials, settings, and that the model answers")
     mem = sub.add_parser("memory", help=f"see, show, or forget what {NAME} remembers")
     mem_sub = mem.add_subparsers(dest="memory_command")
@@ -157,6 +166,101 @@ def chat(being: Poyi) -> int:
 
 def say(being: Poyi, text: str) -> int:
     render(being.stream(text))
+    return 0
+
+
+def chat_via_daemon(client, confirm) -> int:
+    from poyi.identity import INTRO
+
+    print(INTRO)
+    print("     (through the daemon)")
+    try:
+        while True:
+            line = input("you  > ").strip()
+            if not line:
+                continue
+            render(client.say(line, confirm=confirm))
+    except (EOFError, KeyboardInterrupt):
+        print()
+    return 0
+
+
+def daemon_client(settings: Settings):
+    from poyi.daemon import DaemonClient
+
+    client = DaemonClient.for_home(settings.home)
+    return client if client.alive() else None
+
+
+def daemon_command(settings: Settings) -> int:
+    import logging
+
+    from poyi.daemon import Daemon
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    being = Poyi.default(settings, confirmer=DenyAll())
+    daemon = Daemon(being, settings)
+    extra = []
+    if settings.telegram_token and settings.telegram_chat_id:
+        from poyi.fronts.telegram import TelegramBot, TelegramFront
+        from poyi.voice.assemble import make_stt_from_settings
+
+        stt = make_stt_from_settings(settings) if settings.stt != "typed" else None
+        front = TelegramFront(TelegramBot(settings.telegram_token), settings.telegram_chat_id, being, lock=daemon.lock, stt=stt)
+        extra.append(front.run)
+    print(f"{NAME} daemon up; socket {daemon.path}; Ctrl-C to stop")
+    return daemon.run_forever(extra)
+
+
+def status_command(settings: Settings) -> int:
+    client = daemon_client(settings)
+    if client is None:
+        print("daemon: not running (start with `poyi daemon`, or `poyi install` for login)")
+        return 1
+    status = client.status()
+    print(f"daemon: up since {status.get('since', '?')} (pid {status.get('pid', '?')})")
+    print(f"awake: {'yes' if status.get('awake') else 'no credential'}")
+    print(f"mode: {status.get('mode', '?')}   doing: {status.get('activity', '?')}   place: {status.get('place', '?')}")
+    print(f"turns this session: {status.get('turns', 0)}   waiting to mention: {status.get('pending', 0)}")
+    return 0
+
+
+def stop_command(settings: Settings) -> int:
+    client = daemon_client(settings)
+    if client is None:
+        print("daemon: not running")
+        return 1
+    client.stop()
+    print("daemon: stopping")
+    return 0
+
+
+def install_command(settings: Settings, remove: bool) -> int:
+    from poyi.daemon import launchd
+    from poyi.world.sensors import run
+
+    if remove:
+        print("removed" if launchd.uninstall(run=run) else "nothing installed")
+        return 0
+    path = launchd.install(settings.home, run=run)
+    print(f"installed {path}; the daemon starts at login and restarts if it stops. Logs in {settings.home / 'logs'}.")
+    return 0
+
+
+def telegram_command(settings: Settings) -> int:
+    if not (settings.telegram_token and settings.telegram_chat_id):
+        print("set TELEGRAM_BOT_TOKEN and POYI_TELEGRAM_CHAT_ID first")
+        return 1
+    from poyi.fronts.telegram import TelegramBot, TelegramFront
+    from poyi.voice.assemble import make_stt_from_settings
+
+    being = Poyi.default(settings, confirmer=DenyAll())
+    stt = make_stt_from_settings(settings) if settings.stt != "typed" else None
+    print(f"{NAME} on Telegram; Ctrl-C to stop")
+    try:
+        TelegramFront(TelegramBot(settings.telegram_token), settings.telegram_chat_id, being, stt=stt).run()
+    except KeyboardInterrupt:
+        print()
     return 0
 
 
@@ -440,6 +544,28 @@ def main(argv: list[str] | None = None) -> int:
         return world_command(settings, args)
     if args.command == "voice":
         return voice_command(settings, args)
+    if args.command == "daemon":
+        return daemon_command(settings)
+    if args.command == "status":
+        return status_command(settings)
+    if args.command == "stop":
+        return stop_command(settings)
+    if args.command in ("install", "uninstall"):
+        return install_command(settings, remove=args.command == "uninstall")
+    if args.command == "telegram":
+        return telegram_command(settings)
+    if args.command == "menubar":
+        from poyi.daemon import DaemonClient
+        from poyi.fronts import menubar
+
+        return menubar.run(DaemonClient.for_home(settings.home))
+    if args.command in ("chat", "say") and not args.local:
+        client = daemon_client(settings)
+        if client is not None:
+            if args.command == "chat":
+                return chat_via_daemon(client, PromptConfirmer().ask)
+            render(client.say(" ".join(args.text), confirm=(lambda d: True) if args.yes else None))
+            return 0
     if args.command == "eval":
         from poyi.evals.character import run as run_character
 

@@ -56,7 +56,12 @@ class Poyi:
             from poyi.voice.assemble import make_speaker
 
             speaker = make_speaker(settings)
-        notifier = Notifier(desktop=settings.notify, speaker=speaker)
+        remote = None
+        if settings.telegram_token and settings.telegram_chat_id:
+            from poyi.fronts.telegram import TelegramBot, TelegramChannel
+
+            remote = TelegramChannel(TelegramBot(settings.telegram_token), settings.telegram_chat_id)
+        notifier = Notifier(desktop=settings.notify, speaker=speaker, remote=remote)
         awake = has_credentials()
         client = None
         brief = tiebreak = None

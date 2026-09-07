@@ -73,6 +73,9 @@ class Settings:
     stt_model: str = "base.en"
     stt_command: str = ""                                  # for stt=command: a template with {wav}
     vad_threshold: float = 500.0
+    consolidate_at: str = "03:00"                          # when the daemon runs the nightly pass
+    telegram_token: str = ""                               # TELEGRAM_BOT_TOKEN
+    telegram_chat_id: str = ""                             # POYI_TELEGRAM_CHAT_ID: the one chat allowed to talk
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -121,6 +124,9 @@ class Settings:
             stt_model=env.get("POYI_STT_MODEL") or cls.stt_model,
             stt_command=env.get("POYI_STT_COMMAND", ""),
             vad_threshold=float(env.get("POYI_VAD_THRESHOLD") or cls.vad_threshold),
+            consolidate_at=env.get("POYI_CONSOLIDATE_AT") or cls.consolidate_at,
+            telegram_token=env.get("TELEGRAM_BOT_TOKEN", ""),
+            telegram_chat_id=env.get("POYI_TELEGRAM_CHAT_ID", ""),
         )
 
     def ensure_home(self) -> Path:

@@ -17,6 +17,9 @@ voice = [
   "sounddevice>=0.5",
   "faster-whisper>=1.1",
 ]
+menubar = [
+  "rumps>=0.4",
+]
 dev = [
   "pytest>=8.0.0",
 ]

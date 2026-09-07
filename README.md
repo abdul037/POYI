@@ -190,6 +190,33 @@ poyi voice --hands-free               # it decides when you've started and finis
 The first run of faster-whisper downloads the `base.en` model (about 75 MB).
 macOS will ask for microphone access the first time.
 
+## Presence (Phase 7)
+
+One daemon owns Poyi: it runs the initiative ticks, the nightly memory pass
+at `POYI_CONSOLIDATE_AT` (03:00 by default), a Unix socket at
+`~/.poyi/poyi.sock`, and the Telegram front if configured. While it's
+running, `poyi chat` and `poyi say` go through it, so every front shares one
+conversation; `--local` bypasses it. Confirm-tier go-aheads travel over the
+socket to whichever front asked.
+
+```bash
+poyi daemon                   # in the foreground, Ctrl-C to stop
+poyi install                  # start at login and restart on crash (launchd)
+poyi status                   # is it up, and what is it doing
+poyi stop                     # ask it to stop
+poyi uninstall                # remove the launchd agent
+poyi menubar                  # status, mode, tick now (pip install 'poyi[menubar]')
+poyi telegram                 # the phone front on its own, without the daemon
+```
+
+Telegram: make a bot with @BotFather, put its token in `TELEGRAM_BOT_TOKEN`,
+and your own chat id in `POYI_TELEGRAM_CHAT_ID`; only that chat is answered.
+Voice notes are transcribed with the configured speech-to-text. When the
+picture says you're away, notifications go to the phone too.
+
+Later: a Raspberry Pi with a microphone and speaker in another room, running
+only the ears and the voice, talking to the daemon over the network.
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -229,6 +256,8 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_STT_MODEL` | `base.en` | the whisper model size |
 | `POYI_STT_COMMAND` | | for `command`: a template with `{wav}` |
 | `POYI_VAD_THRESHOLD` | `500` | microphone energy that counts as speech; raise it in a noisy room |
+| `POYI_CONSOLIDATE_AT` | `03:00` | when the daemon runs the nightly pass |
+| `TELEGRAM_BOT_TOKEN`, `POYI_TELEGRAM_CHAT_ID` | | the phone front |
 
 ## Layout
 
@@ -264,5 +293,10 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/voice/stt.py` | faster-whisper, a command, or typing |
 | `poyi/voice/audio.py` | the microphone and the energy VAD |
 | `poyi/voice/loop.py` | push-to-talk and hands-free |
+| `poyi/daemon/server.py` | the always-on process: ticks, nightly pass, socket |
+| `poyi/daemon/client.py` | what fronts use to talk to it |
+| `poyi/daemon/launchd.py` | start at login |
+| `poyi/fronts/telegram.py` | the phone |
+| `poyi/fronts/menubar.py` | the menubar |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |

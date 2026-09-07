@@ -23,17 +23,23 @@ class Notifier:
     """Sends to every channel it has. Returns True if at least one worked."""
 
     def __init__(self, *, desktop: bool = True, printer: Callable[[str], None] | None = None,
-                 runner: Callable[[list[str]], str] | None = None, speaker: Any | None = None) -> None:
+                 runner: Callable[[list[str]], str] | None = None, speaker: Any | None = None,
+                 remote: Any | None = None) -> None:
         self.desktop = desktop
         self.printer = printer
         self.runner = runner
         self.speaker = speaker  # a voice.Speaker, when voice is on
+        self.remote = remote    # a channel with send(title, body), e.g. Telegram, used when away
         self.sent: list[tuple[str, str]] = []
         self.spoken: list[str] = []
+        self.sent_remote: list[tuple[str, str]] = []
 
-    def send(self, title: str, body: str = "", *, voice: bool = True) -> bool:
+    def send(self, title: str, body: str = "", *, voice: bool = True, remote: bool = False) -> bool:
         self.sent.append((title, body))
         ok = False
+        if self.remote is not None and remote:
+            self.sent_remote.append((title, body))
+            ok = self.remote.send(title, body) or ok
         if self.printer:
             self.printer(f"{NAME}: {title}" + (f" — {body}" if body else ""))
             ok = True

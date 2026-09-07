@@ -127,7 +127,9 @@ class Initiative:
                 event.body = f"(brief failed: {type(exc).__name__}: {exc})"
         if event.route == "speak":
             body = event.body.splitlines()[0] if event.body else ""
-            self.notifier.send(event.title, body, voice=self.refresher.world.now.mode == "relaxed")
+            now_state = self.refresher.world.now
+            self.notifier.send(event.title, body, voice=now_state.mode == "relaxed",
+                               remote=now_state.place == "away" or now_state.mode == "away")
             event.delivered_at = now.isoformat(timespec="seconds")
         elif event.route == "note":
             self.refresher.note({"__append__": {"notes": [event.title]}}, now)
