@@ -179,8 +179,9 @@ def test_brain_sends_context_as_second_cached_block():
 
 
 def test_system_prompt_memory_section_is_opt_in():
-    assert "/memories/profile.md" not in build_system_prompt(Settings())
-    assert "/memories/profile.md" in build_system_prompt(Settings(), memory=True)
+    assert "log_today" not in build_system_prompt(Settings())
+    assert "log_today" in build_system_prompt(Settings(), memory=True)
+    assert "/memories/profile.md" in build_system_prompt(Settings(), memory=True, anthropic_memory=True)
 
 
 def test_default_assembles_memory(tmp_path, monkeypatch):
@@ -189,8 +190,8 @@ def test_default_assembles_memory(tmp_path, monkeypatch):
     assert being.memory is not None and being.memory.root == tmp_path / "memory"
     assert being.brain is not None
     assert "What you remember" in being.brain.context
-    assert "/memories/profile.md" in being.brain.system
-    assert any(getattr(t, "name", "") == "memory" for t in being.brain.tools)
+    assert "log_today" in being.brain.system
+    assert any(getattr(t, "name", "") == "remember" for t in being.brain.tools)
 
 
 def test_default_without_credentials_still_has_memory(tmp_path, monkeypatch):
@@ -242,3 +243,56 @@ def test_tool_insert_creates_a_missing_log_with_a_header(tmp_path):
     assert (tmp_path / "memory/log/2026-09-08.md").read_text() == "# 2026-09-08\n\n- 09:00 first thing\n"
     out = tool.call({"command": "insert", "path": "/memories/notes/scratch.md", "insert_line": 0, "insert_text": "top"})
     assert out.startswith("Inserted") and (tmp_path / "memory/notes/scratch.md").read_text() == "top\n"
+
+
+def test_add_line_under_heading_and_new_heading(tmp_path):
+    store = make_store(tmp_path)
+    store.add_line("profile", "people who matter", "Amina, sister, lives in Leeds", tag_seen=True)
+    store.add_line("profile", "people who matter", "Sam, old friend (last spoke: 2026-09-01)", tag_seen=True)
+    store.add_line("profile", "people who matter", "Amina, sister, lives in Leeds", tag_seen=True)  # duplicate ignored
+    text = store.profile()
+    block = text.split("## People who matter")[1].split("##")[0]
+    assert block.strip().splitlines() == ["- Amina, sister, lives in Leeds (seen: 2026-09-07)", "- Sam, old friend (last spoke: 2026-09-01) (seen: 2026-09-07)"]
+    store.add_line("threads", "goals", "run 5k (check-in: 2026-10-01)")
+    assert "## Goals\n- run 5k (check-in: 2026-10-01)" in store.threads()
+    store.add_line("threads", "someday", "learn piano")
+    assert store.threads().rstrip().endswith("## Someday\n\n- learn piano")
+
+
+def test_remove_lines_across_files(tmp_path):
+    store = make_store(tmp_path)
+    store.add_line("profile", "people who matter", "Sam, old friend", tag_seen=True)
+    store.add_line("threads", "promised", "reply to Sam")
+    store.append_log("talked to Sam about Friday", when=datetime(2026, 9, 7, 9, 0))
+    assert store.remove_lines("sam") == 3
+    assert "Sam" not in store.profile() and "Sam" not in store.threads() and "Sam" not in store.read_log(TODAY)
+    assert store.remove_lines("") == 0
+
+
+def test_simple_memory_tools(tmp_path):
+    from poyi.memory import make_memory_tools
+
+    store = make_store(tmp_path)
+    remember, log_today, forget = make_memory_tools(store)
+    assert {remember.name, log_today.name, forget.name} == {"remember", "log_today", "forget"}
+    assert remember.call({"line": "Amina, sister, lives in Leeds"}).startswith("Remembered under people who matter")
+    assert "- Amina, sister, lives in Leeds (seen: 2026-09-07)" in store.profile()
+    assert remember.call({"line": "ship phase 9 (check-in: 2026-10-01)", "where": "threads", "heading": "goals"}).startswith("Remembered under goals")
+    assert remember.call({"line": "x", "where": "elsewhere"}).startswith("where must be")
+    remember.call({"line": "Sam, old friend (last spoke: 2026-09-07)", "heading": "people who matter", "replaces": "Sam, old friend"})
+    assert store.profile().count("Sam, old friend") == 1 and "(last spoke: 2026-09-07)" in store.profile()
+    assert log_today.call({"line": "told me about Amina"}) == "Logged."
+    assert "told me about Amina" in store.read_log(TODAY)
+    assert forget.call({"text": "Amina"}) == "Forgot 2 line(s)."
+    assert forget.call({"text": "Amina"}) == "Nothing matched."
+
+
+def test_default_uses_simple_tools_unless_asked(tmp_path, monkeypatch):
+    monkeypatch.setattr("poyi.core.has_credentials", lambda: True)
+    being = Poyi.default(Settings(home=tmp_path))
+    names = {getattr(t, "name", "") for t in being.brain.tools}
+    assert {"remember", "log_today", "forget"} <= names and "memory" not in names
+    assert "log_today" in being.brain.system and "/memories/profile.md" not in being.brain.system
+    being = Poyi.default(Settings(home=tmp_path, memory_tool="anthropic"))
+    names = {getattr(t, "name", "") for t in being.brain.tools}
+    assert "memory" in names and "remember" not in names and "/memories/profile.md" in being.brain.system

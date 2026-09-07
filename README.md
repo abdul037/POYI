@@ -77,10 +77,13 @@ Plain files under `~/.poyi/memory/` that you can open, edit, and delete:
 | `notes/tomorrow.md` | a short note the nightly pass leaves for the next day |
 | `history/` | backups of the profile before each rewrite |
 
-Poyi reads the profile, threads, and today's log at the start of every
-session and writes through the Anthropic memory tool as things happen. The
-nightly pass folds the day into the profile, and facts not seen for 60 days
-decay out unless marked `(keep)`.
+Poyi has the profile, threads, and today's log in front of it every turn
+and writes through three plain tools as things happen: `remember`,
+`log_today`, and `forget`. (The Anthropic memory tool is also wired, behind
+`POYI_MEMORY_TOOL=anthropic`, but it insists on reading the directory before
+every turn, which cost a round trip each time.) The nightly pass folds the day
+into the profile, and facts not seen for 60 days decay out unless marked
+`(keep)`.
 
 ```bash
 poyi memory                    # list what it holds
@@ -281,6 +284,7 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_FALLBACKS` | `true` | server-side refusal fallbacks |
 | `POYI_HOME` | `~/.poyi` | where memory and state live |
 | `POYI_DEBUG` | `false` | log every tool call and result to stderr |
+| `POYI_MEMORY_TOOL` | `simple` | `simple` write-only tools, or `anthropic` for the memory tool |
 | `POYI_HOME_SSID` | | your home Wi-Fi name, for home-or-away |
 | `POYI_QUIET_HOURS` | `23:00-07:00` | when Poyi assumes you're asleep if idle |
 | `POYI_FOCUS_AFTER_MIN` | `25` | minutes of steady work before mode becomes focus |

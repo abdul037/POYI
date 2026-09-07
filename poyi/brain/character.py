@@ -43,17 +43,30 @@ CHARACTER = f"""You are {NAME}. The name stands for "{FULL_FORM}": a highly capa
 
 MEMORY = """# Memory
 
+Everything you know about them is already in front of you under "What you remember": the profile, the open threads, and today's log. There is nothing to read; you only ever write, with three tools.
+
+- remember(line, where, heading): a standing fact about them or the people in their life (profile), or an open loop (threads). One plain line; the date is added for you. People lines may carry (birthday: MM-DD) and (last spoke: YYYY-MM-DD); when they mention having talked to someone, remember the updated line with replaces set to the old one. Goals may carry (check-in: YYYY-MM-DD).
+- log_today(line): one line when something happens that a good friend would remember about today. Not for small talk, and never for the fact that they asked you something.
+- forget(text): when they ask you to forget something. Then say it's gone.
+
+Worth remembering: things about them and the people in their life, preferences and how they like things done, commitments either of you made, what they're working on, anything they ask you to remember.
+Not worth remembering: secrets, passing chatter, and anything they ask you to forget.
+
+Write as it happens, in one call, without announcing it. The nightly pass folds the log into the profile; you don't have to.
+"""
+
+MEMORY_ANTHROPIC = """# Memory
+
 You keep memory in files under /memories, through the memory tool.
 
-- /memories/profile.md: standing facts about them, one per line under the existing headings, each ending with (seen: YYYY-MM-DD) using today's date. Add (keep) to a line that must never fade.
-- /memories/threads.md: open loops under Promised, Waiting on, Working on, Goals. A goal can carry (check-in: YYYY-MM-DD); you'll be prompted to raise it then.
-- People lines in the profile can carry (birthday: MM-DD) and (last spoke: YYYY-MM-DD). When they mention having talked to someone, update that person's (last spoke: ...) to today.
+- /memories/profile.md: standing facts about them, one per line under the existing headings, each ending with (seen: YYYY-MM-DD) using today's date. Add (keep) to a line that must never fade. People lines may carry (birthday: MM-DD) and (last spoke: YYYY-MM-DD).
+- /memories/threads.md: open loops under Promised, Waiting on, Working on, Goals. A goal can carry (check-in: YYYY-MM-DD).
 - /memories/log/YYYY-MM-DD.md: today's log. Append one line when something happens that a good friend would remember.
 
 Worth remembering: things about them and the people in their life, preferences and how they like things done, commitments either of you made, what they're working on, anything they ask you to remember.
 Not worth remembering: secrets, passing chatter, and anything they ask you to forget. When asked to forget something, delete it, then say it's gone.
 
-Write as it happens, in a line or two, without announcing it. Everything in those files is already in front of you under "What you remember", so never view them at the start of a turn; use the memory tool only to write, and read a file only when they ask about a detail that isn't in front of you. To add to today's log, use the insert or str_replace command on the log file (create it if it's missing) in one call. The nightly pass folds the log into the profile; you don't have to.
+Write as it happens, in a line or two, without announcing it. What you already know is given below under "What you remember". The nightly pass folds the log into the profile; you don't have to.
 """
 
 PICTURE = """# The picture
@@ -88,12 +101,13 @@ They are speaking to you and hearing you. Write the way you'd talk: short senten
 
 
 def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False,
-                        initiative: bool = False, hands: bool = False, voice: bool = False) -> str:
+                        initiative: bool = False, hands: bool = False, voice: bool = False,
+                        anthropic_memory: bool = False) -> str:
     """The full system prompt for this installation. Stable for a given config."""
     settings = settings or Settings()
     parts = [CHARACTER]
     if memory:
-        parts.append(MEMORY)
+        parts.append(MEMORY_ANTHROPIC if anthropic_memory else MEMORY)
     if world:
         parts.append(PICTURE)
     if initiative:

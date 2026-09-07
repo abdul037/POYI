@@ -10,7 +10,7 @@ from poyi.brain.character import build_system_prompt
 from poyi.brain.tools import default_tools
 from poyi.config import Settings, has_credentials
 from poyi.identity import INTRO, NAME
-from poyi.memory import MemoryStore, PoyiMemoryTool, render_memory_context
+from poyi.memory import MemoryStore, PoyiMemoryTool, make_memory_tools, render_memory_context
 from poyi.relationship import CareWatcher, GoalsWatcher, PeopleWatcher, Turn, UsageLog, WeeklyWatcher, make_reflection_fn
 from poyi.hands import Hands, build_hands
 from poyi.hands.registry import Confirmer
@@ -89,6 +89,8 @@ class Poyi:
             return cls(brain=None, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker, usage=usage)
         world.refresh(force=True)
 
+        memory_tools = [PoyiMemoryTool(memory)] if settings.memory_tool == "anthropic" else make_memory_tools(memory)
+
         def picture() -> str:
             world.refresh()
             extra = initiative.render_for_picture()
@@ -97,9 +99,10 @@ class Poyi:
         brain = Brain(
             settings,
             client=client,
-            tools=[*default_tools(settings), PoyiMemoryTool(memory), make_update_world_tool(world.note),
+            tools=[*default_tools(settings), *memory_tools, make_update_world_tool(world.note),
                    make_feedback_tool(initiative.feedback), *hands.tools()],
-            system=build_system_prompt(settings, memory=True, world=True, initiative=True, hands=True, voice=voice),
+            system=build_system_prompt(settings, memory=True, world=True, initiative=True, hands=True, voice=voice,
+                                       anthropic_memory=settings.memory_tool == "anthropic"),
             context=render_memory_context(memory),
             turn_context=picture,
         )

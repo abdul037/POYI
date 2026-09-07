@@ -103,6 +103,51 @@ class MemoryStore:
         self.ensure()
         self.threads_path.write_text(text.rstrip() + "\n")
 
+    def _file(self, where: str) -> Path:
+        return self.profile_path if where == "profile" else self.threads_path
+
+    def add_line(self, where: str, heading: str, line: str, *, tag_seen: bool = False) -> None:
+        """Add `- line` under `## heading` (created at the end if missing)."""
+        self.ensure()
+        path = self._file(where)
+        if tag_seen and not SEEN_TAG.search(line):
+            line = f"{line} (seen: {self.today().isoformat()})"
+        lines = path.read_text().splitlines()
+        entry = f"- {line}"
+        if entry in lines:
+            return
+        target = f"## {heading.strip().lower()}"
+        index = next((i for i, l in enumerate(lines) if l.strip().lower() == target), None)
+        if index is None:
+            while lines and not lines[-1].strip():
+                lines.pop()
+            lines += ["", f"## {heading.strip().title()}", "", entry]
+        else:
+            end = index + 1
+            while end < len(lines) and not lines[end].startswith("## "):
+                end += 1
+            while end > index + 1 and not lines[end - 1].strip():
+                end -= 1
+            lines.insert(end, entry)
+        path.write_text("\n".join(lines).rstrip() + "\n")
+
+    def remove_lines(self, text: str) -> int:
+        """Drop every `- ` line containing `text` (case-insensitive) from profile, threads, and logs."""
+        needle = text.lower()
+        if not needle:
+            return 0
+        removed = 0
+        files = [self.profile_path, self.threads_path, *self.log_dir.glob("*.md")] if self.root.exists() else []
+        for path in files:
+            if not path.is_file():
+                continue
+            lines = path.read_text().splitlines()
+            kept = [l for l in lines if not (l.lstrip().startswith("- ") and needle in l.lower())]
+            if len(kept) != len(lines):
+                removed += len(lines) - len(kept)
+                path.write_text("\n".join(kept).rstrip() + "\n")
+        return removed
+
     # --- daily log -------------------------------------------------------
 
     def log_path(self, day: date | None = None) -> Path:

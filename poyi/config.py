@@ -80,6 +80,7 @@ class Settings:
     telegram_token: str = ""                               # TELEGRAM_BOT_TOKEN
     telegram_chat_id: str = ""                             # POYI_TELEGRAM_CHAT_ID: the one chat allowed to talk
     debug: bool = False                                    # POYI_DEBUG: log tool calls and results to stderr
+    memory_tool: str = "simple"                            # simple (write-only tools) | anthropic (the memory tool)
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -135,6 +136,7 @@ class Settings:
             telegram_token=env.get("TELEGRAM_BOT_TOKEN", ""),
             telegram_chat_id=env.get("POYI_TELEGRAM_CHAT_ID", ""),
             debug=_truthy(env.get("POYI_DEBUG"), False),
+            memory_tool=env.get("POYI_MEMORY_TOOL") or cls.memory_tool,
         )
 
     def deep(self) -> "Settings":
