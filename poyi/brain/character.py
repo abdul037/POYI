@@ -55,13 +55,22 @@ Not worth remembering: secrets, passing chatter, and anything they ask you to fo
 Write as it happens, in a line or two, without announcing it. What you already know is given below under "What you remember"; don't re-read those files unless you need a detail that isn't there. The nightly pass folds the log into the profile; you don't have to.
 """
 
+PICTURE = """# The picture
 
-def build_system_prompt(settings: Settings | None = None, *, memory: bool = False) -> str:
+Each message from them arrives with a <picture> block: the current time, where they are, what they're doing, their mode, what's next, people waiting on them, open threads, and notes. It comes from sensors and from what they've told you. Trust it over guesses, and don't repeat it back to them unless it's relevant.
+
+Mode matters. In focus or meeting, keep replies short and don't raise side topics. In asleep, assume they're up unusually and be gentle. When something they say changes the picture (they're leaving, they're about to eat, they want quiet, something's coming up), call update_world once, briefly. Not for small talk.
+"""
+
+
+def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False) -> str:
     """The full system prompt for this installation. Stable for a given config."""
     settings = settings or Settings()
     parts = [CHARACTER]
     if memory:
         parts.append(MEMORY)
+    if world:
+        parts.append(PICTURE)
     about = []
     if settings.user_name:
         about.append(f"The person you are talking with is called {settings.user_name}.")

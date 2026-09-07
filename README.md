@@ -75,6 +75,32 @@ poyi consolidate --dry-run     # the nightly pass, without writing
 poyi consolidate               # run it now (the daemon will schedule it later)
 ```
 
+## The picture (Phase 3)
+
+Poyi keeps a small, always-current picture of you in `~/.poyi/world.json`:
+the time, where you are, what you're doing, your mode, what's next, people
+waiting on you, open threads, and notes. Sensors refresh it about once a
+minute; Poyi updates it itself when you tell it something that changes the
+picture. Every message you send carries it, so Poyi answers "what am I in the
+middle of?" without you explaining.
+
+Sensors today, all local: the clock, the frontmost app and window title
+(macOS, needs Automation permission for your terminal the first time), idle
+time, and home-or-away from the Wi-Fi name (set `POYI_HOME_SSID`). Open
+threads come from memory.
+
+Mode is the field that gates everything later: `relaxed`, `focus`,
+`meeting`, `away`, or `asleep`. Poyi infers it (quiet hours, meeting apps,
+sustained work); you can set it by hand.
+
+```bash
+poyi world                       # the picture right now
+poyi world refresh               # run the sensors and print it
+poyi world mode focus --for 90m  # manual mode, with an expiry
+poyi world mode off              # back to inferring
+poyi world set place home        # correct a field by hand
+```
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -90,7 +116,11 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_WEB` | `true` | web search and fetch tools |
 | `POYI_COMPACTION` | `true` | server-side conversation compaction |
 | `POYI_FALLBACKS` | `true` | server-side refusal fallbacks |
-| `POYI_HOME` | `~/.poyi` | where memory and state will live |
+| `POYI_HOME` | `~/.poyi` | where memory and state live |
+| `POYI_HOME_SSID` | | your home Wi-Fi name, for home-or-away |
+| `POYI_QUIET_HOURS` | `23:00-07:00` | when Poyi assumes you're asleep if idle |
+| `POYI_FOCUS_AFTER_MIN` | `25` | minutes of steady work before mode becomes focus |
+| `POYI_WORLD_REFRESH_S` | `60` | how often sensors run, at most |
 
 ## Layout
 
@@ -106,5 +136,9 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/memory/store.py` | the memory files and the decay rule |
 | `poyi/memory/tool.py` | the memory tool backend Claude writes through |
 | `poyi/memory/consolidate.py` | the nightly pass |
+| `poyi/world/model.py` | the world model and its prompt rendering |
+| `poyi/world/sensors.py` | clock, active app, idle, place, threads |
+| `poyi/world/mode.py` | mode inference and manual overrides |
+| `poyi/world/refresh.py` | runs sensors, applies brain write-backs, persists |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |

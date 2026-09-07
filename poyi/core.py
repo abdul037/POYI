@@ -11,6 +11,8 @@ from poyi.brain.tools import default_tools
 from poyi.config import Settings, has_credentials
 from poyi.identity import INTRO, NAME
 from poyi.memory import MemoryStore, PoyiMemoryTool, render_memory_context
+from poyi.world import Refresher, WorldStore, default_sensors
+from poyi.world.tool import make_update_world_tool
 
 NO_MIND = (
     f"({NAME} has no mind wired in: no Anthropic credential was found. "
@@ -28,6 +30,7 @@ class Poyi:
 
     brain: Brain | None = None
     memory: MemoryStore | None = None
+    world: Refresher | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
 
     @classmethod
@@ -35,15 +38,18 @@ class Poyi:
         """Poyi as installed: character, memory, and tools, if there is a credential."""
         settings = settings or Settings.from_env()
         memory = MemoryStore(settings.home / "memory").ensure()
+        world = Refresher(WorldStore(settings.home), default_sensors(settings, memory.threads), settings)
         if not has_credentials():
-            return cls(brain=None, memory=memory)
+            return cls(brain=None, memory=memory, world=world)
+        world.refresh(force=True)
         brain = Brain(
             settings,
-            tools=[*default_tools(settings), PoyiMemoryTool(memory)],
-            system=build_system_prompt(settings, memory=True),
+            tools=[*default_tools(settings), PoyiMemoryTool(memory), make_update_world_tool(world.note)],
+            system=build_system_prompt(settings, memory=True, world=True),
             context=render_memory_context(memory),
+            turn_context=lambda: (world.refresh(), world.render())[1],
         )
-        return cls(brain=brain, memory=memory)
+        return cls(brain=brain, memory=memory, world=world)
 
     @property
     def awake(self) -> bool:

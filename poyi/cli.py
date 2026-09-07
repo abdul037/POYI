@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime
 from typing import Iterable
 
 from poyi import __version__
@@ -13,6 +14,8 @@ from poyi.core import Poyi
 from poyi.identity import ACRONYM, FULL_FORM, NAME
 from poyi.memory import MemoryStore
 from poyi.memory.consolidate import consolidate
+from poyi.world import MODES, PLACES, Refresher, WorldStore, default_sensors
+from poyi.world.mode import Override, parse_duration
 
 TOOL_LABELS = {
     "web_search": "searching",
@@ -20,6 +23,7 @@ TOOL_LABELS = {
     "current_time": "checking the time",
     "calculate": "calculating",
     "memory": "remembering",
+    "update_world": "noting that",
 }
 
 
@@ -40,6 +44,15 @@ def build_parser() -> argparse.ArgumentParser:
     forget.add_argument("path", nargs="?", help="path relative to the memory folder")
     forget.add_argument("--all", action="store_true", help="wipe all memory")
     forget.add_argument("--yes", action="store_true", help="skip the confirmation")
+    wld = sub.add_parser("world", help=f"the picture {NAME} has of you right now")
+    wld_sub = wld.add_subparsers(dest="world_command")
+    wld_sub.add_parser("refresh", help="run the sensors now and print the picture")
+    mode = wld_sub.add_parser("mode", help="set your mode by hand, e.g. `mode focus --for 90m`, or `mode off`")
+    mode.add_argument("mode", choices=[*MODES, "off"])
+    mode.add_argument("--for", dest="duration", default="2h", help="how long, e.g. 45m, 2h, 1h30m (default 2h)")
+    setter = wld_sub.add_parser("set", help="set a field by hand, e.g. `set place home`")
+    setter.add_argument("field", choices=["place", "activity"])
+    setter.add_argument("value")
     con = sub.add_parser("consolidate", help="run the nightly memory pass now")
     con.add_argument("--dry-run", action="store_true", help="show what would change without writing")
     ev = sub.add_parser("eval", help="run an eval set against the live model")
@@ -181,6 +194,43 @@ def memory_command(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def world_command(settings: Settings, args: argparse.Namespace) -> int:
+    store = WorldStore(settings.home)
+    memory = MemoryStore(settings.home / "memory").ensure()
+    refresher = Refresher(store, default_sensors(settings, memory.threads), settings)
+    if args.world_command == "mode":
+        if args.mode == "off":
+            store.set_override(None)
+            print("manual mode cleared; inferring again.")
+        else:
+            try:
+                until = datetime.now() + parse_duration(args.duration)
+            except ValueError as exc:
+                print(exc)
+                return 1
+            store.set_override(Override(mode=args.mode, until=until))
+            print(f"mode {args.mode} until {until.strftime('%H:%M')}.")
+        refresher.refresh(force=True)
+        print(refresher.render())
+        return 0
+    if args.world_command == "set":
+        if args.field == "place" and args.value not in PLACES:
+            print(f"place must be one of {', '.join(PLACES)}")
+            return 1
+        refresher.note({args.field: args.value})
+        print(refresher.render())
+        return 0
+    if args.world_command == "refresh" or not refresher.world.updated:
+        changed = refresher.refresh(force=True)
+        errors = {k: v for k, v in changed.items() if k.endswith("_error")}
+        for k, v in errors.items():
+            print(f"({k}: {v})")
+    print(refresher.render())
+    if refresher.world.now.activity == "unknown" and not refresher.world.now.app:
+        print("\n(activity unknown: allow Automation for your terminal in System Settings > Privacy & Security, and set POYI_HOME_SSID for place)")
+    return 0
+
+
 def consolidate_command(settings: Settings, dry_run: bool) -> int:
     if not has_credentials():
         print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
@@ -210,6 +260,8 @@ def main(argv: list[str] | None = None) -> int:
         return memory_command(settings, args)
     if args.command == "consolidate":
         return consolidate_command(settings, args.dry_run)
+    if args.command == "world":
+        return world_command(settings, args)
     if args.command == "eval":
         from poyi.evals.character import run as run_character
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from poyi.brain.character import build_system_prompt
 from poyi.brain.tools import default_tools
@@ -41,12 +41,14 @@ class Brain:
         tools: list[Any] | None = None,
         system: str | None = None,
         context: str | None = None,
+        turn_context: Callable[[], str] | None = None,
     ) -> None:
         self.settings = settings or Settings.from_env()
         self._client = client
         self.tools = list(tools) if tools is not None else default_tools(self.settings)
         self.system = system if system is not None else build_system_prompt(self.settings)
         self.context = context
+        self.turn_context = turn_context  # fresh each turn, e.g. the world; never cached
         self.messages: list[dict[str, Any]] = []
         self.last_usage: Any | None = None
 
@@ -73,7 +75,7 @@ class Brain:
             "max_tokens": s.max_tokens,
             "system": self.system_blocks(),
             "tools": self.tools,
-            "messages": list(self.messages),
+            "messages": self.messages_for_request(),
             "stream": True,
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": s.effort},
@@ -89,6 +91,26 @@ class Brain:
         if betas:
             params["betas"] = betas
         return params
+
+    def messages_for_request(self) -> list[dict[str, Any]]:
+        """History as sent: the per-turn context rides on the latest user text only."""
+        messages = list(self.messages)
+        if not self.turn_context or not messages:
+            return messages
+        last = messages[-1]
+        if last.get("role") != "user" or not isinstance(last.get("content"), str):
+            return messages
+        fresh = self.turn_context()
+        if not fresh:
+            return messages
+        messages[-1] = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"<picture>\n{fresh}\n</picture>"},
+                {"type": "text", "text": last["content"]},
+            ],
+        }
+        return messages
 
     def reply(self, text: str) -> str:
         return "".join(e.data for e in self.stream(text) if e.kind == "text")

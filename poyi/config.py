@@ -45,6 +45,10 @@ class Settings:
     compaction: bool = True
     fallbacks: bool = True
     home: Path = field(default_factory=lambda: Path.home() / ".poyi")
+    home_ssid: str = ""
+    quiet_hours: str = "23:00-07:00"
+    focus_after_min: int = 25
+    world_refresh_s: int = 60
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -69,6 +73,10 @@ class Settings:
             compaction=_truthy(env.get("POYI_COMPACTION"), True),
             fallbacks=_truthy(env.get("POYI_FALLBACKS"), True),
             home=home,
+            home_ssid=env.get("POYI_HOME_SSID", ""),
+            quiet_hours=env.get("POYI_QUIET_HOURS") or cls.quiet_hours,
+            focus_after_min=int(env.get("POYI_FOCUS_AFTER_MIN") or cls.focus_after_min),
+            world_refresh_s=int(env.get("POYI_WORLD_REFRESH_S") or cls.world_refresh_s),
         )
 
     def ensure_home(self) -> Path:
