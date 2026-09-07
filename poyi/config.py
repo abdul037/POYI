@@ -1,0 +1,89 @@
+"""Settings for Poyi. Everything comes from the environment or ~/.poyi/env.
+
+Nothing here reads a secret; the Anthropic SDK reads its own credentials.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def _truthy(value: str | None, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_env_file(path: Path, environ: dict[str, str]) -> None:
+    """Read KEY=VALUE lines into `environ` without overriding existing keys."""
+    if not path.is_file():
+        return
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in environ:
+            environ[key] = value
+
+
+@dataclass
+class Settings:
+    model: str = "claude-opus-5"
+    fast_model: str = "claude-haiku-4-5"
+    judge_model: str = "claude-sonnet-5"
+    effort: str = "medium"
+    max_tokens: int = 16000
+    max_tool_rounds: int = 8
+    user_name: str = ""
+    address: str = ""
+    web: bool = True
+    compaction: bool = True
+    fallbacks: bool = True
+    home: Path = field(default_factory=lambda: Path.home() / ".poyi")
+
+    @classmethod
+    def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
+        env = dict(os.environ) if environ is None else dict(environ)
+        home = Path(env.get("POYI_HOME") or Path.home() / ".poyi")
+        load_env_file(home / "env", env)
+        load_env_file(Path.cwd() / ".env", env)
+        # Push loaded values into the real environment so the SDK sees them.
+        if environ is None:
+            for key, value in env.items():
+                os.environ.setdefault(key, value)
+        return cls(
+            model=env.get("POYI_MODEL") or cls.model,
+            fast_model=env.get("POYI_FAST_MODEL") or cls.fast_model,
+            judge_model=env.get("POYI_JUDGE_MODEL") or cls.judge_model,
+            effort=env.get("POYI_EFFORT") or cls.effort,
+            max_tokens=int(env.get("POYI_MAX_TOKENS") or cls.max_tokens),
+            max_tool_rounds=int(env.get("POYI_MAX_TOOL_ROUNDS") or cls.max_tool_rounds),
+            user_name=env.get("POYI_USER", ""),
+            address=env.get("POYI_ADDRESS", ""),
+            web=_truthy(env.get("POYI_WEB"), True),
+            compaction=_truthy(env.get("POYI_COMPACTION"), True),
+            fallbacks=_truthy(env.get("POYI_FALLBACKS"), True),
+            home=home,
+        )
+
+    def ensure_home(self) -> Path:
+        self.home.mkdir(parents=True, exist_ok=True)
+        return self.home
+
+
+def has_credentials(environ: dict[str, str] | None = None) -> bool:
+    """Best-effort check that the Anthropic SDK will find a credential.
+
+    Mirrors the SDK's order: API key, auth token, then an `ant auth login`
+    profile on disk. `poyi doctor` does the real check with a live call.
+    """
+    env = os.environ if environ is None else environ
+    if env.get("ANTHROPIC_API_KEY") or env.get("ANTHROPIC_AUTH_TOKEN"):
+        return True
+    profile_dir = Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "anthropic"
+    return profile_dir.is_dir() and any(profile_dir.iterdir())
