@@ -281,9 +281,11 @@ def test_simple_memory_tools(tmp_path):
     assert remember.call({"line": "x", "where": "elsewhere"}).startswith("where must be")
     remember.call({"line": "Sam, old friend (last spoke: 2026-09-07)", "heading": "people who matter", "replaces": "Sam, old friend"})
     assert store.profile().count("Sam, old friend") == 1 and "(last spoke: 2026-09-07)" in store.profile()
+    assert "learned: Amina, sister, lives in Leeds" in store.read_log(TODAY)
+    assert "updated: Sam, old friend (last spoke: 2026-09-07)" in store.read_log(TODAY)
     assert log_today.call({"line": "told me about Amina"}) == "Logged."
     assert "told me about Amina" in store.read_log(TODAY)
-    assert forget.call({"text": "Amina"}) == "Forgot 2 line(s)."
+    assert forget.call({"text": "Amina"}) == "Forgot 3 line(s)."
     assert forget.call({"text": "Amina"}) == "Nothing matched."
 
 

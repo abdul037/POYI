@@ -41,6 +41,9 @@ def make_memory_tools(store: MemoryStore) -> list[Any]:
         if replaces.strip():
             store.remove_lines(replaces.strip())
         store.add_line(where, heading, line.strip(), tag_seen=where == "profile")
+        # The day log records what changed, so the nightly pass and the weekly
+        # reflection see it without a second tool call.
+        store.append_log(f"{'updated' if replaces.strip() else 'learned'}: {line.strip()}")
         return f"Remembered under {heading}: {line.strip()}"
 
     @beta_tool
