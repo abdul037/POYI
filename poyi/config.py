@@ -63,6 +63,16 @@ class Settings:
     ha_url: str = ""                                       # Home Assistant, e.g. http://homeassistant.local:8123
     ha_token: str = ""                                     # long-lived access token; never enters a prompt
     ha_watch: list[str] = field(default_factory=list)      # entities for the picture and the door watcher
+    voice: bool = False                                    # speak initiative aloud (when relaxed) and enable `poyi voice`
+    tts: str = "say"                                       # say | elevenlabs
+    tts_voice: str = "Daniel"                              # a macOS voice name for `say`
+    tts_rate: int = 185
+    elevenlabs_key: str = ""
+    elevenlabs_voice: str = ""                             # an ElevenLabs voice id
+    stt: str = "faster-whisper"                            # faster-whisper | command | typed
+    stt_model: str = "base.en"
+    stt_command: str = ""                                  # for stt=command: a template with {wav}
+    vad_threshold: float = 500.0
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -101,6 +111,16 @@ class Settings:
             ha_url=env.get("POYI_HA_URL", ""),
             ha_token=env.get("POYI_HA_TOKEN", ""),
             ha_watch=_csv(env.get("POYI_HA_WATCH")),
+            voice=_truthy(env.get("POYI_VOICE"), False),
+            tts=env.get("POYI_TTS") or cls.tts,
+            tts_voice=env.get("POYI_TTS_VOICE") or cls.tts_voice,
+            tts_rate=int(env.get("POYI_TTS_RATE") or cls.tts_rate),
+            elevenlabs_key=env.get("ELEVENLABS_API_KEY", ""),
+            elevenlabs_voice=env.get("POYI_ELEVENLABS_VOICE", ""),
+            stt=env.get("POYI_STT") or cls.stt,
+            stt_model=env.get("POYI_STT_MODEL") or cls.stt_model,
+            stt_command=env.get("POYI_STT_COMMAND", ""),
+            vad_threshold=float(env.get("POYI_VAD_THRESHOLD") or cls.vad_threshold),
         )
 
     def ensure_home(self) -> Path:

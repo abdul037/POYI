@@ -10,7 +10,7 @@ from typing import Iterable
 from poyi import __version__
 from poyi.brain.agent import Event
 from poyi.config import Settings, has_credentials
-from poyi.core import Poyi
+from poyi.core import NO_MIND, Poyi
 from poyi.hands.registry import AllowAll, DenyAll, PromptConfirmer
 from poyi.identity import ACRONYM, FULL_FORM, NAME
 from poyi.memory import MemoryStore
@@ -91,6 +91,10 @@ def build_parser() -> argparse.ArgumentParser:
     audit = hands_sub.add_parser("audit", help="recent actions and what happened to them")
     audit.add_argument("--limit", type=int, default=20)
     sub.add_parser("reminders", help="pending reminders and timers")
+    vc = sub.add_parser("voice", help=f"talk to {NAME} out loud")
+    vc.add_argument("--hands-free", action="store_true", help="no button: it listens for you to start and stop")
+    vc.add_argument("--typed", action="store_true", help="type instead of speaking; replies are still spoken")
+    vc.add_argument("--say", metavar="TEXT", help="just speak TEXT in the configured voice and exit")
     br = sub.add_parser("brief", help="write the morning brief or evening wind-down now")
     br.add_argument("kind", choices=["morning", "evening"])
     con = sub.add_parser("consolidate", help="run the nightly memory pass now")
@@ -367,6 +371,34 @@ def reminders_command(being: Poyi) -> int:
     return 0
 
 
+def voice_command(settings: Settings, args: argparse.Namespace) -> int:
+    from poyi.voice.assemble import make_speaker, make_stt_from_settings
+    from poyi.voice.audio import EnergyVAD, Recorder
+    from poyi.voice.loop import VoiceLoop
+    from poyi.voice.stt import TypedSTT
+
+    speaker = make_speaker(settings)
+    if args.say:
+        speaker.enqueue(args.say)
+        speaker.finish()
+        return 0
+    being = Poyi.default(settings, confirmer=PromptConfirmer(), voice=True)
+    if not being.awake:
+        print(NO_MIND)
+        return 1
+    if args.typed:
+        stt = TypedSTT()
+    else:
+        stt = make_stt_from_settings(settings)
+        if stt is None:
+            print("no speech-to-text configured: set POYI_STT=faster-whisper (pip install 'poyi[voice]'), or use --typed")
+            return 1
+    loop = VoiceLoop(being, stt, speaker, frames=Recorder().frames, vad=EnergyVAD(threshold=settings.vad_threshold))
+    if args.hands_free:
+        return loop.run_hands_free()
+    return loop.run_push_to_talk()
+
+
 def brief_command(being: Poyi, kind: str) -> int:
     if being.initiative is None or being.initiative.brief is None:
         print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
@@ -406,6 +438,8 @@ def main(argv: list[str] | None = None) -> int:
         return consolidate_command(settings, args.dry_run)
     if args.command == "world":
         return world_command(settings, args)
+    if args.command == "voice":
+        return voice_command(settings, args)
     if args.command == "eval":
         from poyi.evals.character import run as run_character
 

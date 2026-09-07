@@ -40,14 +40,23 @@ class Poyi:
     hands: Hands | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
 
+    speaker: Any | None = None
+
     @classmethod
-    def default(cls, settings: Settings | None = None, *, confirmer: Confirmer | None = None) -> "Poyi":
-        """Poyi as installed: character, memory, the picture, initiative, and hands."""
+    def default(cls, settings: Settings | None = None, *, confirmer: Confirmer | None = None,
+                voice: bool | None = None) -> "Poyi":
+        """Poyi as installed: character, memory, the picture, initiative, hands, and a voice if on."""
         settings = settings or Settings.from_env()
+        voice = settings.voice if voice is None else voice
         memory = MemoryStore(settings.home / "memory").ensure()
         hands = build_hands(settings, confirmer=confirmer, read_profile=memory.profile)
         world = Refresher(WorldStore(settings.home), [*default_sensors(settings, memory.threads), *hands.sensors], settings)
-        notifier = Notifier(desktop=settings.notify)
+        speaker = None
+        if voice:
+            from poyi.voice.assemble import make_speaker
+
+            speaker = make_speaker(settings)
+        notifier = Notifier(desktop=settings.notify, speaker=speaker)
         awake = has_credentials()
         client = None
         brief = tiebreak = None
@@ -60,7 +69,7 @@ class Poyi:
         initiative = Initiative(settings.home, world, [*default_watchers(settings, memory.threads), *hands.watchers],
                                 notifier, tiebreak=tiebreak, brief=brief)
         if not awake:
-            return cls(brain=None, memory=memory, world=world, initiative=initiative, hands=hands)
+            return cls(brain=None, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker)
         world.refresh(force=True)
 
         def picture() -> str:
@@ -73,11 +82,11 @@ class Poyi:
             client=client,
             tools=[*default_tools(settings), PoyiMemoryTool(memory), make_update_world_tool(world.note),
                    make_feedback_tool(initiative.feedback), *hands.tools()],
-            system=build_system_prompt(settings, memory=True, world=True, initiative=True, hands=True),
+            system=build_system_prompt(settings, memory=True, world=True, initiative=True, hands=True, voice=voice),
             context=render_memory_context(memory),
             turn_context=picture,
         )
-        return cls(brain=brain, memory=memory, world=world, initiative=initiative, hands=hands)
+        return cls(brain=brain, memory=memory, world=world, initiative=initiative, hands=hands, speaker=speaker)
 
     @property
     def awake(self) -> bool:

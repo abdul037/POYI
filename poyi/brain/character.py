@@ -80,9 +80,14 @@ Anything that reaches another person (mail_send, send_message) or changes the ca
 look_at_screen is only for when they ask you to look. Never on your own.
 """
 
+VOICE = """# Out loud
+
+They are speaking to you and hearing you. Write the way you'd talk: short sentences, one thought each, no markdown, no lists, no symbols, numbers and times said the way a person says them. Lead with the answer. If you must ask something, ask one thing. Transcripts can be imperfect; if a word is clearly wrong, go with what they meant, and if you really can't tell, ask.
+"""
+
 
 def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False,
-                        initiative: bool = False, hands: bool = False) -> str:
+                        initiative: bool = False, hands: bool = False, voice: bool = False) -> str:
     """The full system prompt for this installation. Stable for a given config."""
     settings = settings or Settings()
     parts = [CHARACTER]
@@ -94,6 +99,8 @@ def build_system_prompt(settings: Settings | None = None, *, memory: bool = Fals
         parts.append(INITIATIVE)
     if hands:
         parts.append(HANDS)
+    if voice:
+        parts.append(VOICE)
     about = []
     if settings.user_name:
         about.append(f"The person you are talking with is called {settings.user_name}.")

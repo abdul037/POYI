@@ -167,6 +167,29 @@ poyi reminders                # pending reminders and timers
 POYI_UNLOCK=run_shell POYI_SHELL_ALLOW="git status,ls" poyi chat
 ```
 
+## Voice (Phase 6)
+
+Local by default. The Mac's built-in voices speak (Daniel, the British one,
+is the default), speech-to-text runs on the machine with faster-whisper, and
+only text ever leaves. ElevenLabs is the one cloud option, for a much better
+voice, when `ELEVENLABS_API_KEY` and a voice id are set.
+
+Replies are spoken sentence by sentence while the brain is still writing
+the next one. In push-to-talk, Ctrl-C cuts Poyi off. Hands-free, speaking
+over it does. When `POYI_VOICE=true`, initiative speaks its notifications
+aloud too, but only while your mode is relaxed.
+
+```bash
+pip install -e ".[voice]"            # sounddevice and faster-whisper
+poyi voice --say "Good evening."      # test the voice
+poyi voice --typed                    # type, hear the reply
+poyi voice                            # push to talk: Enter to start, Enter to stop
+poyi voice --hands-free               # it decides when you've started and finished
+```
+
+The first run of faster-whisper downloads the `base.en` model (about 75 MB).
+macOS will ask for microphone access the first time.
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -197,6 +220,15 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_HA_URL` | | Home Assistant, e.g. `http://homeassistant.local:8123` |
 | `POYI_HA_TOKEN` | | a long-lived access token |
 | `POYI_HA_WATCH` | | entities for the picture and the door watcher, comma-separated |
+| `POYI_VOICE` | `false` | speak initiative aloud when relaxed |
+| `POYI_TTS` | `say` | `say` or `elevenlabs` |
+| `POYI_TTS_VOICE` | `Daniel` | a macOS voice name; `say -v ?` lists them |
+| `POYI_TTS_RATE` | `185` | words per minute for `say` |
+| `ELEVENLABS_API_KEY`, `POYI_ELEVENLABS_VOICE` | | ElevenLabs key and voice id |
+| `POYI_STT` | `faster-whisper` | `faster-whisper`, `command`, or `typed` |
+| `POYI_STT_MODEL` | `base.en` | the whisper model size |
+| `POYI_STT_COMMAND` | | for `command`: a template with `{wav}` |
+| `POYI_VAD_THRESHOLD` | `500` | microphone energy that counts as speech; raise it in a noisy room |
 
 ## Layout
 
@@ -228,5 +260,9 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/hands/messages.py` | iMessage, through your contacts file |
 | `poyi/hands/home.py` | Home Assistant: state, list, call, sensor, watcher |
 | `poyi/hands/shell.py` | the locked, allowlisted shell |
+| `poyi/voice/tts.py` | `say` and ElevenLabs, sentence streaming, interruption |
+| `poyi/voice/stt.py` | faster-whisper, a command, or typing |
+| `poyi/voice/audio.py` | the microphone and the energy VAD |
+| `poyi/voice/loop.py` | push-to-talk and hands-free |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |
