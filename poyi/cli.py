@@ -11,6 +11,8 @@ from poyi.brain.agent import Event
 from poyi.config import Settings, has_credentials
 from poyi.core import Poyi
 from poyi.identity import ACRONYM, FULL_FORM, NAME
+from poyi.memory import MemoryStore
+from poyi.memory.consolidate import consolidate
 
 TOOL_LABELS = {
     "web_search": "searching",
@@ -30,6 +32,16 @@ def build_parser() -> argparse.ArgumentParser:
     say = sub.add_parser("say", help=f"send one message to {NAME} and print the reply")
     say.add_argument("text", nargs="+", help="what to say")
     sub.add_parser("doctor", help="check credentials, settings, and that the model answers")
+    mem = sub.add_parser("memory", help=f"see, show, or forget what {NAME} remembers")
+    mem_sub = mem.add_subparsers(dest="memory_command")
+    show = mem_sub.add_parser("show", help="print profile, threads, today, tomorrow, or a file path")
+    show.add_argument("what", nargs="?", default="profile")
+    forget = mem_sub.add_parser("forget", help="delete one memory file, or everything with --all")
+    forget.add_argument("path", nargs="?", help="path relative to the memory folder")
+    forget.add_argument("--all", action="store_true", help="wipe all memory")
+    forget.add_argument("--yes", action="store_true", help="skip the confirmation")
+    con = sub.add_parser("consolidate", help="run the nightly memory pass now")
+    con.add_argument("--dry-run", action="store_true", help="show what would change without writing")
     ev = sub.add_parser("eval", help="run an eval set against the live model")
     ev.add_argument("suite", choices=["character"], help="which eval set")
     ev.add_argument("--limit", type=int, default=None, help="run only the first N cases")
@@ -122,11 +134,82 @@ def doctor(settings: Settings) -> int:
     return 0 if ok else 1
 
 
+def memory_command(settings: Settings, args: argparse.Namespace) -> int:
+    store = MemoryStore(settings.home / "memory").ensure()
+    if args.memory_command == "show":
+        what = args.what
+        named = {
+            "profile": store.profile,
+            "threads": store.threads,
+            "today": store.read_log,
+            "tomorrow": store.tomorrow_note,
+        }
+        if what in named:
+            text = named[what]()
+        else:
+            target = (store.root / what)
+            if not target.is_file():
+                print(f"no such memory file: {what}")
+                return 1
+            text = target.read_text()
+        print(text.rstrip() or "(empty)")
+        return 0
+    if args.memory_command == "forget":
+        if args.all:
+            if not args.yes:
+                answer = input(f"Wipe everything {NAME} remembers? Type 'forget' to confirm: ").strip()
+                if answer != "forget":
+                    print("kept.")
+                    return 1
+            store.wipe()
+            print("All memory cleared.")
+            return 0
+        if not args.path:
+            print("give a path, or --all")
+            return 1
+        target = store.root / args.path
+        if not target.is_file():
+            print(f"no such memory file: {args.path}")
+            return 1
+        target.unlink()
+        print(f"forgot {args.path}")
+        return 0
+    files = store.files()
+    print(f"memory at {store.root}")
+    for rel, size in files:
+        print(f"  {size:>7}  {rel}")
+    return 0
+
+
+def consolidate_command(settings: Settings, dry_run: bool) -> int:
+    if not has_credentials():
+        print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
+        return 1
+    store = MemoryStore(settings.home / "memory").ensure()
+    result = consolidate(store, settings, dry_run=dry_run)
+    print("profile\n-------")
+    print(result.profile.rstrip())
+    print("\nthreads\n-------")
+    print(result.threads.rstrip())
+    print("\ntomorrow\n--------")
+    print(result.tomorrow.rstrip() or "(nothing)")
+    if result.dropped:
+        print("\nlet go\n------")
+        for item in result.dropped:
+            print(f"- {item}")
+    print("\n(dry run, nothing written)" if dry_run else "\nwritten.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     settings = Settings.from_env()
     if args.command == "doctor":
         return doctor(settings)
+    if args.command == "memory":
+        return memory_command(settings, args)
+    if args.command == "consolidate":
+        return consolidate_command(settings, args.dry_run)
     if args.command == "eval":
         from poyi.evals.character import run as run_character
 

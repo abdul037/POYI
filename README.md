@@ -49,6 +49,32 @@ instead of pretending.
 - `poyi eval character`: 20 rubric cases graded by a judge model, so prompt
   changes can't quietly break the character. Costs a few cents.
 
+## Memory (Phase 2)
+
+Plain files under `~/.poyi/memory/` that you can open, edit, and delete:
+
+| File | What |
+|---|---|
+| `profile.md` | standing facts, one per line, each tagged `(seen: YYYY-MM-DD)`; add `(keep)` to a line that must never fade |
+| `threads.md` | open loops: promised, waiting on, working on, goals |
+| `log/YYYY-MM-DD.md` | what happened that day, in Poyi's words |
+| `notes/tomorrow.md` | a short note the nightly pass leaves for the next day |
+| `history/` | backups of the profile before each rewrite |
+
+Poyi reads the profile, threads, and today's log at the start of every
+session and writes through the Anthropic memory tool as things happen. The
+nightly pass folds the day into the profile, and facts not seen for 60 days
+decay out unless marked `(keep)`.
+
+```bash
+poyi memory                    # list what it holds
+poyi memory show profile       # or threads, today, tomorrow, or a path
+poyi memory forget log/2026-09-07.md
+poyi memory forget --all       # asks you to type "forget"
+poyi consolidate --dry-run     # the nightly pass, without writing
+poyi consolidate               # run it now (the daemon will schedule it later)
+```
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -77,5 +103,8 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/brain/agent.py` | the agent loop and streaming |
 | `poyi/core.py` | the `Poyi` object the CLI talks to |
 | `poyi/cli.py` | `poyi`, `chat`, `say`, `doctor`, `eval` |
+| `poyi/memory/store.py` | the memory files and the decay rule |
+| `poyi/memory/tool.py` | the memory tool backend Claude writes through |
+| `poyi/memory/consolidate.py` | the nightly pass |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |

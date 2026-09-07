@@ -40,11 +40,13 @@ class Brain:
         client: Any | None = None,
         tools: list[Any] | None = None,
         system: str | None = None,
+        context: str | None = None,
     ) -> None:
         self.settings = settings or Settings.from_env()
         self._client = client
         self.tools = list(tools) if tools is not None else default_tools(self.settings)
         self.system = system if system is not None else build_system_prompt(self.settings)
+        self.context = context
         self.messages: list[dict[str, Any]] = []
         self.last_usage: Any | None = None
 
@@ -56,15 +58,20 @@ class Brain:
             self._client = anthropic.Anthropic()
         return self._client
 
+    def system_blocks(self) -> list[dict[str, Any]]:
+        """Character first, then per-session context (memory, later the world). Each cached."""
+        blocks = [{"type": "text", "text": self.system, "cache_control": {"type": "ephemeral"}}]
+        if self.context:
+            blocks.append({"type": "text", "text": self.context, "cache_control": {"type": "ephemeral"}})
+        return blocks
+
     def request_params(self) -> dict[str, Any]:
         """The exact parameters for the next request. Stable prefix first."""
         s = self.settings
         params: dict[str, Any] = {
             "model": s.model,
             "max_tokens": s.max_tokens,
-            "system": [
-                {"type": "text", "text": self.system, "cache_control": {"type": "ephemeral"}}
-            ],
+            "system": self.system_blocks(),
             "tools": self.tools,
             "messages": list(self.messages),
             "stream": True,

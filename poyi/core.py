@@ -6,8 +6,11 @@ from dataclasses import dataclass, field
 from typing import Any, Iterator
 
 from poyi.brain.agent import REFUSAL_LINE, Brain, Event
+from poyi.brain.character import build_system_prompt
+from poyi.brain.tools import default_tools
 from poyi.config import Settings, has_credentials
 from poyi.identity import INTRO, NAME
+from poyi.memory import MemoryStore, PoyiMemoryTool, render_memory_context
 
 NO_MIND = (
     f"({NAME} has no mind wired in: no Anthropic credential was found. "
@@ -24,14 +27,23 @@ class Poyi:
     """
 
     brain: Brain | None = None
+    memory: MemoryStore | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
 
     @classmethod
     def default(cls, settings: Settings | None = None) -> "Poyi":
+        """Poyi as installed: character, memory, and tools, if there is a credential."""
         settings = settings or Settings.from_env()
+        memory = MemoryStore(settings.home / "memory").ensure()
         if not has_credentials():
-            return cls(brain=None)
-        return cls(brain=Brain(settings))
+            return cls(brain=None, memory=memory)
+        brain = Brain(
+            settings,
+            tools=[*default_tools(settings), PoyiMemoryTool(memory)],
+            system=build_system_prompt(settings, memory=True),
+            context=render_memory_context(memory),
+        )
+        return cls(brain=brain, memory=memory)
 
     @property
     def awake(self) -> bool:
