@@ -45,7 +45,7 @@ class Poyi:
         """Poyi as installed: character, memory, the picture, initiative, and hands."""
         settings = settings or Settings.from_env()
         memory = MemoryStore(settings.home / "memory").ensure()
-        hands = build_hands(settings, confirmer=confirmer)
+        hands = build_hands(settings, confirmer=confirmer, read_profile=memory.profile)
         world = Refresher(WorldStore(settings.home), [*default_sensors(settings, memory.threads), *hands.sensors], settings)
         notifier = Notifier(desktop=settings.notify)
         awake = has_credentials()

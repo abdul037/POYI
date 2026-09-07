@@ -38,6 +38,14 @@ TOOL_LABELS = {
     "media": "music",
     "look_at_screen": "looking at the screen",
     "run_shell": "running a command",
+    "calendar_agenda": "checking the calendar",
+    "calendar_create": "adding to the calendar",
+    "mail_unread": "checking mail",
+    "mail_send": "sending mail",
+    "send_message": "sending a message",
+    "home_state": "checking the home",
+    "home_list": "checking the home",
+    "home_call": "changing the home",
 }
 
 

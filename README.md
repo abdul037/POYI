@@ -142,13 +142,23 @@ Every tool sits in a tier, and every call is written to `~/.poyi/hands/audit.jso
 
 | Tier | Rule | Today |
 |---|---|---|
-| free | runs at once | reminders and timers, open an app or URL, clipboard, music, a look at the screen (only when you ask) |
-| confirm | Poyi says what it's about to do in one line and waits for your go-ahead | (next: calendar writes, mail, messages, home) |
+| free | runs at once | reminders and timers, the calendar agenda, unread mail, home device states, open an app or URL, clipboard, music, a look at the screen (only when you ask) |
+| confirm | Poyi reads back exactly what will happen and waits for your go-ahead | add a calendar event, send mail, send an iMessage, change something in the home |
 | locked | refused unless you enable it by name | `run_shell`, and then only allowlisted prefixes |
 
 In `poyi chat` the go-ahead is a `[y/N]` on the terminal. `poyi say` declines
 everything that needs one unless you pass `--yes`. Reminders that come due
 arrive as high-priority events through initiative, not through the chat.
+
+Calendar, Mail, and Messages go through AppleScript, so macOS will ask you
+to allow Automation for your terminal the first time each is used. iMessage
+names resolve through `~/.poyi/contacts.json`, which you write by hand:
+`{"Sam": "+447700900123"}`. Home Assistant needs `POYI_HA_URL` and a
+long-lived token in `POYI_HA_TOKEN`; the token never enters a prompt.
+
+Calendar events and mail from people in your profile's "People who matter"
+section become events for initiative; watched Home Assistant doors and
+presence do too.
 
 ```bash
 poyi hands                    # what it can do, by tier
@@ -183,6 +193,10 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_TICK_S` | `30` | seconds between ticks in `poyi watch` |
 | `POYI_UNLOCK` | | locked hands to enable, comma-separated, e.g. `run_shell` |
 | `POYI_SHELL_ALLOW` | | allowed command prefixes for `run_shell`, comma-separated |
+| `POYI_CALENDAR` | first calendar | the Apple Calendar new events go into |
+| `POYI_HA_URL` | | Home Assistant, e.g. `http://homeassistant.local:8123` |
+| `POYI_HA_TOKEN` | | a long-lived access token |
+| `POYI_HA_WATCH` | | entities for the picture and the door watcher, comma-separated |
 
 ## Layout
 
@@ -209,6 +223,10 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/hands/registry.py` | tiers, confirmation, the audit log |
 | `poyi/hands/reminders.py` | reminders and timers, and their watcher |
 | `poyi/hands/macos.py` | apps, URLs, clipboard, music, the screen |
+| `poyi/hands/calendar.py` | Apple Calendar: agenda, create, and the sensor |
+| `poyi/hands/mail.py` | Apple Mail: unread, send, and the watcher |
+| `poyi/hands/messages.py` | iMessage, through your contacts file |
+| `poyi/hands/home.py` | Home Assistant: state, list, call, sensor, watcher |
 | `poyi/hands/shell.py` | the locked, allowlisted shell |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |

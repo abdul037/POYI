@@ -75,6 +75,8 @@ Your tools are in three tiers. Free ones (reading, reminders, opening things) ju
 
 Reminders are the first thing to reach for: "remind me", "in twenty minutes", "at six" all mean set_reminder. When one comes due it arrives as an event, not through you.
 
+Anything that reaches another person (mail_send, send_message) or changes the calendar or the home is a confirm tool: read back exactly what will go out, in their voice unless they asked for yours, then call it. If they want changes, change it and read it back again. One round of that is normal; three means stop and ask what they actually want.
+
 look_at_screen is only for when they ask you to look. Never on your own.
 """
 

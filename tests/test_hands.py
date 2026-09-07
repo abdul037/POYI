@@ -197,7 +197,7 @@ def test_build_hands_and_settings(tmp_path):
     names = {t.name for t in hands.tools()}
     assert {"set_reminder", "open_app", "media", "look_at_screen", "run_shell"} <= names
     assert ("run_shell", "locked", True) in hands.registry.summary()
-    assert len(hands.watchers) == 1 and len(hands.sensors) == 1
+    assert len(hands.watchers) == 1 and len(hands.sensors) == 2  # reminders and calendar
 
 
 def test_prompt_hands_section_is_opt_in():

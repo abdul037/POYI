@@ -59,6 +59,10 @@ class Settings:
     tick_s: int = 30
     unlock: list[str] = field(default_factory=list)       # locked hands enabled by name
     shell_allow: list[str] = field(default_factory=list)  # allowed command prefixes for run_shell
+    calendar_name: str = ""                                # Apple Calendar to write to; first calendar if empty
+    ha_url: str = ""                                       # Home Assistant, e.g. http://homeassistant.local:8123
+    ha_token: str = ""                                     # long-lived access token; never enters a prompt
+    ha_watch: list[str] = field(default_factory=list)      # entities for the picture and the door watcher
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -93,6 +97,10 @@ class Settings:
             tick_s=int(env.get("POYI_TICK_S") or cls.tick_s),
             unlock=_csv(env.get("POYI_UNLOCK")),
             shell_allow=_csv(env.get("POYI_SHELL_ALLOW")),
+            calendar_name=env.get("POYI_CALENDAR", ""),
+            ha_url=env.get("POYI_HA_URL", ""),
+            ha_token=env.get("POYI_HA_TOKEN", ""),
+            ha_watch=_csv(env.get("POYI_HA_WATCH")),
         )
 
     def ensure_home(self) -> Path:

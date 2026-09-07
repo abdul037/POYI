@@ -5,16 +5,17 @@ from __future__ import annotations
 from typing import Callable
 
 from poyi.identity import NAME
-from poyi.world.sensors import run
+from poyi.world import sensors as _sensors
 
 
 def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def notify_macos(title: str, body: str, runner: Callable[[list[str]], str] = run) -> bool:
+def notify_macos(title: str, body: str, runner: Callable[[list[str]], str] | None = None) -> bool:
+    runner = runner or _sensors.run
     script = f'display notification "{_escape(body)}" with title "{_escape(NAME)}" subtitle "{_escape(title)}"'
-    out = run(["osascript", "-e", script]) if runner is run else runner(["osascript", "-e", script])
+    out = runner(["osascript", "-e", script])
     return out is not None
 
 
@@ -35,5 +36,5 @@ class Notifier:
             self.printer(f"{NAME}: {title}" + (f" — {body}" if body else ""))
             ok = True
         if self.desktop:
-            ok = notify_macos(title, body, runner=self.runner or run) or ok
+            ok = notify_macos(title, body, runner=self.runner) or ok
         return ok

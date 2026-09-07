@@ -14,7 +14,7 @@ from typing import Any, Callable
 from anthropic import beta_tool
 
 from poyi.hands.registry import Hand, Registry
-from poyi.world.sensors import run
+from poyi.world import sensors as _sensors
 
 Runner = Callable[[list[str]], str]
 URL_RE = re.compile(r"^https?://[^\s]+$", re.I)
@@ -29,7 +29,7 @@ def _q(text: str) -> str:
 
 
 def register(registry: Registry, *, runner: Runner | None = None, screenshot_dir: Path | None = None) -> None:
-    r: Runner = runner or run
+    r: Runner = runner or _sensors.run
 
     # --- apps and URLs -----------------------------------------------------------------
     def open_app(name: str) -> str:
