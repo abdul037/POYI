@@ -11,6 +11,7 @@ from poyi import __version__
 from poyi.brain.agent import Event
 from poyi.config import Settings, has_credentials
 from poyi.core import Poyi
+from poyi.hands.registry import AllowAll, DenyAll, PromptConfirmer
 from poyi.identity import ACRONYM, FULL_FORM, NAME
 from poyi.memory import MemoryStore
 from poyi.memory.consolidate import consolidate
@@ -27,6 +28,16 @@ TOOL_LABELS = {
     "memory": "remembering",
     "update_world": "noting that",
     "interruption_feedback": "noting that",
+    "set_reminder": "setting a reminder",
+    "list_reminders": "checking reminders",
+    "cancel_reminder": "cancelling",
+    "open_app": "opening",
+    "open_url": "opening",
+    "clipboard_read": "reading the clipboard",
+    "clipboard_write": "copying",
+    "media": "music",
+    "look_at_screen": "looking at the screen",
+    "run_shell": "running a command",
 }
 
 
@@ -38,6 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("chat", help=f"talk to {NAME} in a loop; Ctrl-D or Ctrl-C to leave")
     say = sub.add_parser("say", help=f"send one message to {NAME} and print the reply")
     say.add_argument("text", nargs="+", help="what to say")
+    say.add_argument("--yes", action="store_true", help="approve confirm-tier actions without asking")
     sub.add_parser("doctor", help="check credentials, settings, and that the model answers")
     mem = sub.add_parser("memory", help=f"see, show, or forget what {NAME} remembers")
     mem_sub = mem.add_subparsers(dest="memory_command")
@@ -66,6 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
     fb = ini_sub.add_parser("feedback", help="tell it how an interruption landed")
     fb.add_argument("event_id")
     fb.add_argument("verdict", choices=["not_now", "thanks"])
+    hands = sub.add_parser("hands", help=f"what {NAME} can do, by tier")
+    hands_sub = hands.add_subparsers(dest="hands_command")
+    audit = hands_sub.add_parser("audit", help="recent actions and what happened to them")
+    audit.add_argument("--limit", type=int, default=20)
+    sub.add_parser("reminders", help="pending reminders and timers")
     br = sub.add_parser("brief", help="write the morning brief or evening wind-down now")
     br.add_argument("kind", choices=["morning", "evening"])
     con = sub.add_parser("consolidate", help="run the nightly memory pass now")
@@ -312,6 +329,36 @@ def initiative_command(being: Poyi, args: argparse.Namespace) -> int:
     return 0
 
 
+def hands_command(being: Poyi, args: argparse.Namespace) -> int:
+    if being.hands is None:
+        print("hands not available")
+        return 1
+    if args.hands_command == "audit":
+        entries = being.hands.registry.audit.recent(args.limit)
+        if not entries:
+            print("(no actions yet)")
+        for e in entries:
+            stamp = str(e.get("at", ""))[11:16]
+            print(f"{stamp}  {e.get('tier', ''):<7} {e.get('outcome', ''):<18} {e.get('description', '')}")
+        return 0
+    for name, tier, enabled in being.hands.registry.summary():
+        state = "" if enabled else "  (locked; enable with POYI_UNLOCK)"
+        print(f"{tier:<8} {name}{state}")
+    return 0
+
+
+def reminders_command(being: Poyi) -> int:
+    if being.hands is None:
+        print("hands not available")
+        return 1
+    items = being.hands.reminders.pending()
+    if not items:
+        print("(no reminders pending)")
+    for r in items:
+        print(f"[{r.id}] {r.at():%a %d %b %H:%M}  {r.text}")
+    return 0
+
+
 def brief_command(being: Poyi, kind: str) -> int:
     if being.initiative is None or being.initiative.brief is None:
         print("credentials   MISSING: set ANTHROPIC_API_KEY or run `ant auth login`")
@@ -355,7 +402,17 @@ def main(argv: list[str] | None = None) -> int:
         from poyi.evals.character import run as run_character
 
         return run_character(settings, limit=args.limit, verbose=args.verbose)
-    being = Poyi.default(settings)
+    if args.command == "chat":
+        confirmer = PromptConfirmer()
+    elif args.command == "say" and args.yes:
+        confirmer = AllowAll()
+    else:
+        confirmer = DenyAll()
+    being = Poyi.default(settings, confirmer=confirmer)
+    if args.command == "hands":
+        return hands_command(being, args)
+    if args.command == "reminders":
+        return reminders_command(being)
     if args.command == "tick":
         return tick_command(being)
     if args.command == "watch":

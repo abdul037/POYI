@@ -57,6 +57,8 @@ class NextWatcher:
     def check(self, world: World, now: datetime) -> list[Event]:
         out: list[Event] = []
         for item in world.next:
+            if item.endswith("(reminder)"):
+                continue  # reminders fire on their own, at the moment they are due
             when = parse_next_item(item, now)
             if when is None:
                 continue

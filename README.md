@@ -136,6 +136,27 @@ poyi initiative weights                # what it has learned
 poyi brief morning                     # or evening; needs credentials
 ```
 
+## Hands with judgment (Phase 5)
+
+Every tool sits in a tier, and every call is written to `~/.poyi/hands/audit.jsonl`:
+
+| Tier | Rule | Today |
+|---|---|---|
+| free | runs at once | reminders and timers, open an app or URL, clipboard, music, a look at the screen (only when you ask) |
+| confirm | Poyi says what it's about to do in one line and waits for your go-ahead | (next: calendar writes, mail, messages, home) |
+| locked | refused unless you enable it by name | `run_shell`, and then only allowlisted prefixes |
+
+In `poyi chat` the go-ahead is a `[y/N]` on the terminal. `poyi say` declines
+everything that needs one unless you pass `--yes`. Reminders that come due
+arrive as high-priority events through initiative, not through the chat.
+
+```bash
+poyi hands                    # what it can do, by tier
+poyi hands audit              # what it did, and what happened
+poyi reminders                # pending reminders and timers
+POYI_UNLOCK=run_shell POYI_SHELL_ALLOW="git status,ls" poyi chat
+```
+
 ## Settings
 
 All optional, from the environment, `./.env`, or `~/.poyi/env`:
@@ -160,6 +181,8 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `POYI_BRIEF_MORNING` | `08:00` | when the morning brief fires |
 | `POYI_BRIEF_EVENING` | `21:30` | when the evening wind-down fires |
 | `POYI_TICK_S` | `30` | seconds between ticks in `poyi watch` |
+| `POYI_UNLOCK` | | locked hands to enable, comma-separated, e.g. `run_shell` |
+| `POYI_SHELL_ALLOW` | | allowed command prefixes for `run_shell`, comma-separated |
 
 ## Layout
 
@@ -183,5 +206,9 @@ All optional, from the environment, `./.env`, or `~/.poyi/env`:
 | `poyi/initiative/policy.py` | scoring, hard rules, learned weights |
 | `poyi/initiative/loop.py` | the tick: decide, deliver, learn |
 | `poyi/initiative/brief.py` | the morning brief and evening wind-down |
+| `poyi/hands/registry.py` | tiers, confirmation, the audit log |
+| `poyi/hands/reminders.py` | reminders and timers, and their watcher |
+| `poyi/hands/macos.py` | apps, URLs, clipboard, music, the screen |
+| `poyi/hands/shell.py` | the locked, allowlisted shell |
 | `poyi/evals/character.py` | the character eval set |
 | `tests/` | fast tests with a fake client |

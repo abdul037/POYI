@@ -11,6 +11,8 @@ from poyi.brain.tools import default_tools
 from poyi.config import Settings, has_credentials
 from poyi.identity import INTRO, NAME
 from poyi.memory import MemoryStore, PoyiMemoryTool, render_memory_context
+from poyi.hands import Hands, build_hands
+from poyi.hands.registry import Confirmer
 from poyi.initiative import Initiative, Notifier, default_watchers, make_model_tiebreak
 from poyi.initiative.brief import make_brief_fn
 from poyi.initiative.tool import make_feedback_tool
@@ -35,14 +37,16 @@ class Poyi:
     memory: MemoryStore | None = None
     world: Refresher | None = None
     initiative: Initiative | None = None
+    hands: Hands | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
 
     @classmethod
-    def default(cls, settings: Settings | None = None) -> "Poyi":
-        """Poyi as installed: character, memory, and tools, if there is a credential."""
+    def default(cls, settings: Settings | None = None, *, confirmer: Confirmer | None = None) -> "Poyi":
+        """Poyi as installed: character, memory, the picture, initiative, and hands."""
         settings = settings or Settings.from_env()
         memory = MemoryStore(settings.home / "memory").ensure()
-        world = Refresher(WorldStore(settings.home), default_sensors(settings, memory.threads), settings)
+        hands = build_hands(settings, confirmer=confirmer)
+        world = Refresher(WorldStore(settings.home), [*default_sensors(settings, memory.threads), *hands.sensors], settings)
         notifier = Notifier(desktop=settings.notify)
         awake = has_credentials()
         client = None
@@ -53,10 +57,10 @@ class Poyi:
             client = anthropic.Anthropic()
             brief = make_brief_fn(settings, memory, world.render, client=client, root=settings.home)
             tiebreak = make_model_tiebreak(client, settings.fast_model)
-        initiative = Initiative(settings.home, world, default_watchers(settings, memory.threads), notifier,
-                                tiebreak=tiebreak, brief=brief)
+        initiative = Initiative(settings.home, world, [*default_watchers(settings, memory.threads), *hands.watchers],
+                                notifier, tiebreak=tiebreak, brief=brief)
         if not awake:
-            return cls(brain=None, memory=memory, world=world, initiative=initiative)
+            return cls(brain=None, memory=memory, world=world, initiative=initiative, hands=hands)
         world.refresh(force=True)
 
         def picture() -> str:
@@ -68,12 +72,12 @@ class Poyi:
             settings,
             client=client,
             tools=[*default_tools(settings), PoyiMemoryTool(memory), make_update_world_tool(world.note),
-                   make_feedback_tool(initiative.feedback)],
-            system=build_system_prompt(settings, memory=True, world=True, initiative=True),
+                   make_feedback_tool(initiative.feedback), *hands.tools()],
+            system=build_system_prompt(settings, memory=True, world=True, initiative=True, hands=True),
             context=render_memory_context(memory),
             turn_context=picture,
         )
-        return cls(brain=brain, memory=memory, world=world, initiative=initiative)
+        return cls(brain=brain, memory=memory, world=world, initiative=initiative, hands=hands)
 
     @property
     def awake(self) -> bool:

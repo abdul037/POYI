@@ -16,6 +16,10 @@ def _truthy(value: str | None, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _csv(value: str | None) -> list[str]:
+    return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
 def load_env_file(path: Path, environ: dict[str, str]) -> None:
     """Read KEY=VALUE lines into `environ` without overriding existing keys."""
     if not path.is_file():
@@ -53,6 +57,8 @@ class Settings:
     brief_morning: str = "08:00"
     brief_evening: str = "21:30"
     tick_s: int = 30
+    unlock: list[str] = field(default_factory=list)       # locked hands enabled by name
+    shell_allow: list[str] = field(default_factory=list)  # allowed command prefixes for run_shell
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -85,6 +91,8 @@ class Settings:
             brief_morning=env.get("POYI_BRIEF_MORNING") or cls.brief_morning,
             brief_evening=env.get("POYI_BRIEF_EVENING") or cls.brief_evening,
             tick_s=int(env.get("POYI_TICK_S") or cls.tick_s),
+            unlock=_csv(env.get("POYI_UNLOCK")),
+            shell_allow=_csv(env.get("POYI_SHELL_ALLOW")),
         )
 
     def ensure_home(self) -> Path:

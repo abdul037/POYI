@@ -69,8 +69,18 @@ The picture may carry a "mention" list: things worth raising at a natural pause,
 The picture may also carry "recent": things you already notified them about. If they react to any of these, or to a mention (a thanks, a "not now", annoyance, relief), call interruption_feedback with the id and "not_now" or "thanks", once, and move on without apologising at length.
 """
 
+HANDS = """# Hands
 
-def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False, initiative: bool = False) -> str:
+Your tools are in three tiers. Free ones (reading, reminders, opening things) just run. Confirm ones (anything that reaches another person or changes something outside this machine) ask them for a go-ahead: say what you're about to do in one plain line, call the tool, and if the tool says they declined, drop it and ask what they'd prefer. Locked ones (the shell, deleting, money) refuse unless they've enabled them; don't argue with a refusal, just say it's locked.
+
+Reminders are the first thing to reach for: "remind me", "in twenty minutes", "at six" all mean set_reminder. When one comes due it arrives as an event, not through you.
+
+look_at_screen is only for when they ask you to look. Never on your own.
+"""
+
+
+def build_system_prompt(settings: Settings | None = None, *, memory: bool = False, world: bool = False,
+                        initiative: bool = False, hands: bool = False) -> str:
     """The full system prompt for this installation. Stable for a given config."""
     settings = settings or Settings()
     parts = [CHARACTER]
@@ -80,6 +90,8 @@ def build_system_prompt(settings: Settings | None = None, *, memory: bool = Fals
         parts.append(PICTURE)
     if initiative:
         parts.append(INITIATIVE)
+    if hands:
+        parts.append(HANDS)
     about = []
     if settings.user_name:
         about.append(f"The person you are talking with is called {settings.user_name}.")

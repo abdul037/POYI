@@ -38,7 +38,7 @@ def test_render_refusal():
 
 def test_say_with_a_brain(monkeypatch, capsys):
     brain = Brain(Settings(), client=FakeClient([simple_turn("Evening, Abdul.")]), tools=[])
-    monkeypatch.setattr(Poyi, "default", classmethod(lambda cls, settings=None: cls(brain=brain)))
+    monkeypatch.setattr(Poyi, "default", classmethod(lambda cls, settings=None, **kw: cls(brain=brain)))
     assert cli.main(["say", "evening"]) == 0
     assert "Evening, Abdul." in capsys.readouterr().out
 
