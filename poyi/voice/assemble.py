@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from poyi.config import Settings
 from poyi.voice.stt import STT, make_stt
+from poyi.voice.audio import FfmpegRecorder, Recorder
 from poyi.voice.tts import TTS, ElevenLabsTTS, SayTTS, Speaker
 
 
@@ -19,3 +20,11 @@ def make_speaker(settings: Settings) -> Speaker:
 
 def make_stt_from_settings(settings: Settings) -> STT | None:
     return make_stt(settings.stt, model=settings.stt_model, command=settings.stt_command)
+
+
+def make_recorder(settings: Settings) -> object:
+    """The microphone source: ffmpeg (reliable on macOS) or sounddevice."""
+    if settings.recorder == "ffmpeg":
+        return FfmpegRecorder(device=settings.audio_input or "0")
+    device = int(settings.audio_input) if settings.audio_input.isdigit() else None
+    return Recorder(device=device)

@@ -486,8 +486,8 @@ def reminders_command(being: Poyi) -> int:
 
 
 def voice_command(settings: Settings, args: argparse.Namespace) -> int:
-    from poyi.voice.assemble import make_speaker, make_stt_from_settings
-    from poyi.voice.audio import EnergyVAD, Recorder
+    from poyi.voice.assemble import make_recorder, make_speaker, make_stt_from_settings
+    from poyi.voice.audio import EnergyVAD
     from poyi.voice.loop import VoiceLoop
     from poyi.voice.stt import TypedSTT
 
@@ -507,7 +507,13 @@ def voice_command(settings: Settings, args: argparse.Namespace) -> int:
         if stt is None:
             print("no speech-to-text configured: set POYI_STT=faster-whisper (pip install 'poyi[voice]'), or use --typed")
             return 1
-    loop = VoiceLoop(being, stt, speaker, frames=Recorder().frames, vad=EnergyVAD(threshold=settings.vad_threshold))
+    if settings.recorder == "ffmpeg":
+        import shutil
+
+        if shutil.which("ffmpeg") is None:
+            print("ffmpeg isn't installed: `brew install ffmpeg`, or set POYI_RECORDER=sounddevice")
+            return 1
+    loop = VoiceLoop(being, stt, speaker, frames=make_recorder(settings).frames, vad=EnergyVAD(threshold=settings.vad_threshold))
     if args.hands_free:
         return loop.run_hands_free()
     return loop.run_push_to_talk()

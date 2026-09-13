@@ -159,11 +159,12 @@ class MemoryStore:
 
     def append_log(self, text: str, when: datetime | None = None) -> None:
         self.ensure()
-        when = when or datetime.now()
-        p = self.log_path(when.date())
-        line = f"- {when.strftime('%H:%M')} {text.strip()}\n"
+        now = when or datetime.now()
+        day = now.date() if when is not None else self.today()  # respect the injected clock
+        p = self.log_path(day)
+        line = f"- {now.strftime('%H:%M')} {text.strip()}\n"
         if not p.exists():
-            p.write_text(f"# {when.date().isoformat()}\n\n{line}")
+            p.write_text(f"# {day.isoformat()}\n\n{line}")
         else:
             with p.open("a") as f:
                 f.write(line)

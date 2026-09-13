@@ -74,6 +74,8 @@ class Settings:
     stt_model: str = "base.en"
     stt_command: str = ""                                  # for stt=command: a template with {wav}
     vad_threshold: float = 500.0
+    recorder: str = "sounddevice"          # sounddevice | ffmpeg (ffmpeg is reliable on macOS)
+    audio_input: str = ""                  # ffmpeg avfoundation index, or a sounddevice device index
     consolidate_at: str = "03:00"                          # when the daemon runs the nightly pass
     reflect_weekday: int = 6                               # Monday is 0; Sunday is 6
     reflect_at: str = "18:00"
@@ -87,9 +89,12 @@ class Settings:
         env = dict(os.environ) if environ is None else dict(environ)
         home = Path(env.get("POYI_HOME") or Path.home() / ".poyi")
         load_env_file(home / "env", env)
-        load_env_file(Path.cwd() / ".env", env)
-        # Push loaded values into the real environment so the SDK sees them.
+        # The project ./.env is a real-runtime convenience only; an explicit
+        # `environ` (tests) never reads it, and POYI_SKIP_DOTENV opts out.
         if environ is None:
+            if not env.get("POYI_SKIP_DOTENV"):
+                load_env_file(Path.cwd() / ".env", env)
+            # Push loaded values into the real environment so the SDK sees them.
             for key, value in env.items():
                 os.environ.setdefault(key, value)
         return cls(
@@ -130,6 +135,8 @@ class Settings:
             stt_model=env.get("POYI_STT_MODEL") or cls.stt_model,
             stt_command=env.get("POYI_STT_COMMAND", ""),
             vad_threshold=float(env.get("POYI_VAD_THRESHOLD") or cls.vad_threshold),
+            recorder=env.get("POYI_RECORDER") or cls.recorder,
+            audio_input=env.get("POYI_AUDIO_INPUT", ""),
             consolidate_at=env.get("POYI_CONSOLIDATE_AT") or cls.consolidate_at,
             reflect_weekday=int(env.get("POYI_REFLECT_WEEKDAY") or cls.reflect_weekday),
             reflect_at=env.get("POYI_REFLECT_AT") or cls.reflect_at,

@@ -288,3 +288,60 @@ def test_voice_cli_say_and_missing_brain(tmp_path, monkeypatch, capsys):
     assert calls[-1][:2] == ["say", "-v"] and calls[-1][-1] == "Good evening."
     assert cli.main(["voice", "--typed"]) == 1
     assert "no mind" in capsys.readouterr().out
+
+
+def test_ffmpeg_recorder_chunks_into_frames():
+    import io
+    from types import SimpleNamespace
+
+    from poyi.voice.audio import FRAME_SAMPLES, FfmpegRecorder
+
+    frame_bytes = FRAME_SAMPLES * 2
+    pcm = bytes(frame_bytes * 3 + 17)  # three whole frames plus a partial tail
+    terminated = {"n": 0}
+
+    def popen():
+        return SimpleNamespace(stdout=io.BytesIO(pcm), terminate=lambda: terminated.__setitem__("n", terminated["n"] + 1))
+
+    rec = FfmpegRecorder(device="0", popen=popen)
+    frames = list(rec.frames())
+    assert len(frames) == 3 and all(len(f) == frame_bytes for f in frames)
+    assert terminated["n"] >= 1  # process was stopped when the stream ended
+    cmd = rec.command()
+    assert cmd[0] == "ffmpeg" and "avfoundation" in cmd and ":0" in cmd and "s16le" in cmd and "16000" in cmd
+
+
+def test_ffmpeg_recorder_terminates_when_consumer_stops():
+    import io
+    from types import SimpleNamespace
+
+    from poyi.voice.audio import FRAME_SAMPLES, FfmpegRecorder
+
+    killed = {"n": 0}
+
+    def popen():
+        return SimpleNamespace(stdout=io.BytesIO(bytes(FRAME_SAMPLES * 2 * 10)),
+                               terminate=lambda: killed.__setitem__("n", killed["n"] + 1))
+
+    gen = FfmpegRecorder(popen=popen).frames()
+    next(gen)          # take one frame
+    gen.close()        # consumer stops early (as record_until_silence does on break)
+    assert killed["n"] >= 1
+
+
+def test_make_recorder_selects_backend():
+    from poyi.voice.assemble import make_recorder
+    from poyi.voice.audio import FfmpegRecorder, Recorder
+
+    r = make_recorder(Settings(recorder="ffmpeg", audio_input="1"))
+    assert isinstance(r, FfmpegRecorder) and r.device == "1"
+    assert isinstance(make_recorder(Settings(recorder="ffmpeg")), FfmpegRecorder)
+    r = make_recorder(Settings(recorder="sounddevice", audio_input="2"))
+    assert isinstance(r, Recorder) and r.device == 2
+    assert make_recorder(Settings(recorder="sounddevice")).device is None
+
+
+def test_recorder_settings_from_env():
+    s = Settings.from_env({"POYI_RECORDER": "ffmpeg", "POYI_AUDIO_INPUT": "0"})
+    assert s.recorder == "ffmpeg" and s.audio_input == "0"
+    assert Settings.from_env({}).recorder == "sounddevice"

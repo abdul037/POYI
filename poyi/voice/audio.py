@@ -97,6 +97,56 @@ class Recorder:
                 yield bytes(data)
 
 
+@dataclass
+class FfmpegRecorder:
+    """Capture from the mic via ffmpeg's avfoundation input (macOS).
+
+    Yields the same 30 ms 16 kHz mono int16 frames as `Recorder`, so the VAD,
+    push-to-talk, hands-free, and barge-in all work unchanged. ffmpeg reliably
+    triggers the macOS microphone permission prompt that a Homebrew Python
+    process does not, which is why it exists.
+    """
+
+    device: str = "0"          # avfoundation audio device index, from `ffmpeg -list_devices`
+    rate: int = RATE
+    ffmpeg: str = "ffmpeg"
+    popen: Callable[[], Any] | None = None  # injectable for tests
+
+    def command(self) -> list[str]:
+        return [self.ffmpeg, "-hide_banner", "-loglevel", "quiet", "-nostdin",
+                "-f", "avfoundation", "-i", f":{self.device}",
+                "-ar", str(self.rate), "-ac", "1", "-f", "s16le", "-"]
+
+    def _spawn(self) -> Any:
+        if self.popen is not None:
+            return self.popen()
+        import subprocess
+        return subprocess.Popen(self.command(), stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+
+    def frames(self) -> Iterator[bytes]:
+        proc = self._spawn()
+        stream = proc.stdout
+        frame_bytes = FRAME_SAMPLES * 2
+        try:
+            buf = b""
+            while True:
+                chunk = stream.read(frame_bytes - len(buf))
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) >= frame_bytes:
+                    yield buf[:frame_bytes]
+                    buf = buf[frame_bytes:]
+        finally:
+            for stop in (getattr(proc, "terminate", None), getattr(proc, "kill", None)):
+                try:
+                    if stop:
+                        stop()
+                except Exception:  # noqa: BLE001
+                    pass
+
+
 def record_until_silence(frames: Iterator[bytes], vad: EnergyVAD, *, wait_for_start: bool = True,
                          max_seconds: float | None = None, clock: Callable[[], float] = time.monotonic) -> bytes:
     """Collect one utterance. Returns b"" if nothing was said before max_seconds."""
