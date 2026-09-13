@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tempfile
 import threading
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
@@ -72,12 +73,26 @@ class VoiceLoop:
         self.out(reply.strip())
         return reply
 
+    def warmup(self) -> None:
+        """Load the speech model before listening, so the first utterance is quick."""
+        warm = getattr(self.stt, "warmup", None)
+        if warm is None:
+            return
+        self.out("     (loading the speech model, one moment...)")
+        try:
+            warm()
+        except Exception as exc:  # noqa: BLE001 - a load failure shouldn't stop the session starting
+            self.out(f"     (speech model didn't load: {type(exc).__name__}: {exc})")
+
     def transcribe(self, pcm: bytes) -> str:
         if not pcm:
             return ""
-        path = write_wav(self.wav_dir / "poyi-utterance.wav", pcm)
+        path = write_wav(self.wav_dir / f"poyi-{uuid.uuid4().hex[:8]}.wav", pcm)
         try:
             return self.stt.transcribe(path)
+        except Exception as exc:  # noqa: BLE001 - one bad utterance must not end the loop
+            self.out(f"     (couldn't make that out: {type(exc).__name__})")
+            return ""
         finally:
             try:
                 path.unlink()
@@ -88,6 +103,7 @@ class VoiceLoop:
 
     def run_push_to_talk(self) -> int:
         self.out(f"{NAME}: push to talk. Enter to start, Enter to stop, Ctrl-D to leave.")
+        self.warmup()
         try:
             while True:
                 if isinstance(self.stt, TypedSTT):
@@ -110,6 +126,7 @@ class VoiceLoop:
         return 0
 
     def run_hands_free(self, wake: Callable[[Iterator[bytes]], bool] | None = None) -> int:
+        self.warmup()
         self.out(f"{NAME}: listening. Speak, and speak over me to interrupt. Ctrl-C to leave.")
         try:
             while True:

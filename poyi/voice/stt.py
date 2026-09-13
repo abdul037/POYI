@@ -32,6 +32,10 @@ class FasterWhisperSTT:
             self._model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
         return self._model
 
+    def warmup(self) -> None:
+        """Load the model now, so the first utterance doesn't wait on a download."""
+        self._load()
+
     def transcribe(self, wav_path: Path) -> str:
         model = self._load()
         segments, _info = model.transcribe(str(wav_path), language=self.language, beam_size=1, vad_filter=True)

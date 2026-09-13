@@ -345,3 +345,44 @@ def test_recorder_settings_from_env():
     s = Settings.from_env({"POYI_RECORDER": "ffmpeg", "POYI_AUDIO_INPUT": "0"})
     assert s.recorder == "ffmpeg" and s.audio_input == "0"
     assert Settings.from_env({}).recorder == "sounddevice"
+
+
+def test_transcribe_survives_stt_errors(tmp_path):
+    out = []
+
+    class Boom:
+        name = "boom"
+
+        def transcribe(self, path):
+            raise RuntimeError("bad audio")
+
+    loop = VoiceLoop(FakeBeing([]), Boom(), Speaker(FakeTTS()), out=out.append, wav_dir=tmp_path)
+    assert loop.transcribe(b"\x01\x02" * 100) == ""  # returns empty, does not raise
+    assert any("couldn't make that out" in line for line in out)
+    assert not list(tmp_path.glob("poyi-*.wav"))  # temp file cleaned up
+
+
+def test_warmup_loads_the_model_and_survives_failure(tmp_path):
+    out = []
+    loaded = {"n": 0}
+
+    class Warm:
+        name = "warm"
+
+        def warmup(self):
+            loaded["n"] += 1
+
+        def transcribe(self, path):
+            return ""
+
+    loop = VoiceLoop(FakeBeing([]), Warm(), Speaker(FakeTTS()), out=out.append)
+    loop.warmup()
+    assert loaded["n"] == 1 and any("loading the speech model" in l for l in out)
+
+    class BadWarm(Warm):
+        def warmup(self):
+            raise RuntimeError("no model")
+
+    out.clear()
+    VoiceLoop(FakeBeing([]), BadWarm(), Speaker(FakeTTS()), out=out.append).warmup()
+    assert any("didn't load" in l for l in out)
