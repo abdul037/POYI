@@ -513,7 +513,8 @@ def voice_command(settings: Settings, args: argparse.Namespace) -> int:
         if shutil.which("ffmpeg") is None:
             print("ffmpeg isn't installed: `brew install ffmpeg`, or set POYI_RECORDER=sounddevice")
             return 1
-    loop = VoiceLoop(being, stt, speaker, frames=make_recorder(settings).frames, vad=EnergyVAD(threshold=settings.vad_threshold))
+    loop = VoiceLoop(being, stt, speaker, frames=make_recorder(settings).frames,
+                     vad=EnergyVAD(threshold=settings.vad_threshold), barge_in=settings.barge_in)
     if args.hands_free:
         return loop.run_hands_free()
     return loop.run_push_to_talk()

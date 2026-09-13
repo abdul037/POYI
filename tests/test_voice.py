@@ -386,3 +386,50 @@ def test_warmup_loads_the_model_and_survives_failure(tmp_path):
     out.clear()
     VoiceLoop(FakeBeing([]), BadWarm(), Speaker(FakeTTS()), out=out.append).warmup()
     assert any("didn't load" in l for l in out)
+
+
+def test_speaker_not_latched_after_interrupt():
+    """A barge-in on one response must not silence the next."""
+    tts = FakeTTS()
+    sp = Speaker(tts)
+    sp.enqueue("first.")
+    sp.interrupt()               # user talked over it
+    assert not sp.speaking
+    reply = sp.speak_stream(iter(["Second reply."]))   # next turn
+    assert reply == "Second reply." and sp.spoken[-1] == "Second reply."
+
+
+def test_hands_free_replies_every_turn_without_barge_in(tmp_path):
+    """Regression: Poyi replied once then went silent. Each turn must get a reply."""
+    frames_calls = {"n": 0}
+
+    def frames():
+        frames_calls["n"] += 1
+        return iter([b"\x00\x00" * 480])  # one silent frame; recorder closes cleanly
+
+    being = FakeBeing(["First.", "Second.", "Third."])
+    stt = iter(["one", "two", "three"])
+
+    class SeqSTT:
+        name = "seq"
+
+        def transcribe(self, path):
+            return next(stt)
+
+    out = []
+    loop = VoiceLoop(being, SeqSTT(), Speaker(FakeTTS()), frames=frames, out=out.append, wav_dir=tmp_path)
+
+    # feed three utterances then stop
+    calls = {"n": 0}
+    real = loop.transcribe
+
+    def transcribe(pcm):
+        calls["n"] += 1
+        if calls["n"] > 3:
+            raise KeyboardInterrupt
+        return next(stt)
+
+    loop.transcribe = transcribe
+    loop.run_hands_free()
+    assert being.heard == ["one", "two", "three"]
+    assert loop.speaker.spoken == ["First.", "Second.", "Third."]

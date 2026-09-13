@@ -76,6 +76,7 @@ class Settings:
     vad_threshold: float = 500.0
     recorder: str = "sounddevice"          # sounddevice | ffmpeg (ffmpeg is reliable on macOS)
     audio_input: str = ""                  # ffmpeg avfoundation index, or a sounddevice device index
+    barge_in: bool = False                 # listen while speaking so you can interrupt (needs 2 mic streams)
     consolidate_at: str = "03:00"                          # when the daemon runs the nightly pass
     reflect_weekday: int = 6                               # Monday is 0; Sunday is 6
     reflect_at: str = "18:00"
@@ -137,6 +138,7 @@ class Settings:
             vad_threshold=float(env.get("POYI_VAD_THRESHOLD") or cls.vad_threshold),
             recorder=env.get("POYI_RECORDER") or cls.recorder,
             audio_input=env.get("POYI_AUDIO_INPUT", ""),
+            barge_in=_truthy(env.get("POYI_BARGE_IN"), False),
             consolidate_at=env.get("POYI_CONSOLIDATE_AT") or cls.consolidate_at,
             reflect_weekday=int(env.get("POYI_REFLECT_WEEKDAY") or cls.reflect_weekday),
             reflect_at=env.get("POYI_REFLECT_AT") or cls.reflect_at,

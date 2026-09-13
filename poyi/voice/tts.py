@@ -186,6 +186,7 @@ class Speaker:
 
     def speak_stream(self, deltas: Iterable[str], on_text: Callable[[str], None] | None = None) -> str:
         """Consume text as it streams, speaking each sentence as soon as it's complete."""
+        self._interrupted = False  # a fresh response; a prior barge-in must not silence this one
         buffer = ""
         full: list[str] = []
         for delta in deltas:

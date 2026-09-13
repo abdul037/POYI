@@ -32,6 +32,7 @@ class VoiceLoop:
         out: Callable[[str], None] = print,
         ask: Callable[[str], str] = input,
         wav_dir: Path | None = None,
+        barge_in: bool = False,
     ) -> None:
         self.being = being
         self.stt = stt
@@ -41,6 +42,7 @@ class VoiceLoop:
         self.out = out
         self.ask = ask
         self.wav_dir = wav_dir or Path(tempfile.gettempdir())
+        self.barge_in = barge_in  # listen while speaking (needs concurrent mic capture)
 
     # --- one exchange ---------------------------------------------------------------------
 
