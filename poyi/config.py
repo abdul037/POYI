@@ -70,6 +70,7 @@ class Settings:
     tts_rate: int = 185
     elevenlabs_key: str = ""
     elevenlabs_voice: str = ""                             # an ElevenLabs voice id
+    elevenlabs_model: str = "eleven_flash_v2_5"            # fast (~75ms); eleven_multilingual_v2 is richer but slow
     stt: str = "faster-whisper"                            # faster-whisper | command | typed
     stt_model: str = "base.en"
     stt_command: str = ""                                  # for stt=command: a template with {wav}
@@ -132,6 +133,7 @@ class Settings:
             tts_rate=int(env.get("POYI_TTS_RATE") or cls.tts_rate),
             elevenlabs_key=env.get("ELEVENLABS_API_KEY", ""),
             elevenlabs_voice=env.get("POYI_ELEVENLABS_VOICE", ""),
+            elevenlabs_model=env.get("POYI_ELEVENLABS_MODEL") or cls.elevenlabs_model,
             stt=env.get("POYI_STT") or cls.stt,
             stt_model=env.get("POYI_STT_MODEL") or cls.stt_model,
             stt_command=env.get("POYI_STT_COMMAND", ""),

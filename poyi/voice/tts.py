@@ -127,14 +127,31 @@ class ElevenLabsTTS:
 class Speaker:
     """Speaks sentences in order on a background thread. `interrupt()` is barge-in."""
 
-    def __init__(self, tts: TTS) -> None:
+    def __init__(self, tts: TTS, fallback: TTS | None = None,
+                 on_error: Callable[[str], None] | None = None) -> None:
         self.tts = tts
+        self.fallback = fallback           # spoken if the primary voice errors mid-reply
+        self.on_error = on_error
         self.queue: queue.Queue[str | None] = queue.Queue()
         self.current: Playback | None = None
         self.spoken: list[str] = []
         self._lock = threading.Lock()
         self._interrupted = False
         self._thread: threading.Thread | None = None
+
+    def _speak_one(self, item: str) -> Playback | None:
+        try:
+            return self.tts.speak(item)
+        except Exception as exc:  # noqa: BLE001 - a voice failure must not kill the speaker
+            if self.on_error:
+                self.on_error(f"voice failed ({type(exc).__name__}); using the local voice")
+            if self.fallback is not None:
+                try:
+                    return self.fallback.speak(item)
+                except Exception as exc2:  # noqa: BLE001
+                    if self.on_error:
+                        self.on_error(f"fallback voice also failed: {exc2}")
+            return None
 
     def _worker(self) -> None:
         while True:
@@ -143,10 +160,13 @@ class Speaker:
                 return
             if self._interrupted:
                 continue
+            playback = self._speak_one(item)
+            if playback is None:
+                continue
             with self._lock:
-                self.current = self.tts.speak(item)
+                self.current = playback
             self.spoken.append(item)
-            self.current.wait()
+            playback.wait()
             with self._lock:
                 self.current = None
 

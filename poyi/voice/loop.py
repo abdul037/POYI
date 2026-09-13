@@ -43,6 +43,8 @@ class VoiceLoop:
         self.ask = ask
         self.wav_dir = wav_dir or Path(tempfile.gettempdir())
         self.barge_in = barge_in  # listen while speaking (needs concurrent mic capture)
+        if getattr(self.speaker, "on_error", None) is None:
+            self.speaker.on_error = lambda msg: self.out(f"     ({msg})")
 
     # --- one exchange ---------------------------------------------------------------------
 

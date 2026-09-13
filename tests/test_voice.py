@@ -433,3 +433,43 @@ def test_hands_free_replies_every_turn_without_barge_in(tmp_path):
     loop.run_hands_free()
     assert being.heard == ["one", "two", "three"]
     assert loop.speaker.spoken == ["First.", "Second.", "Third."]
+
+
+def test_speaker_falls_back_when_primary_voice_errors():
+    class BadTTS:
+        name = "bad"
+
+        def speak(self, text):
+            raise RuntimeError("network down")
+
+    fb = FakeTTS()
+    errors = []
+    sp = Speaker(BadTTS(), fallback=fb, on_error=errors.append)
+    reply = sp.speak_stream(iter(["Hello there. Second one."]))
+    assert reply == "Hello there. Second one."
+    assert sp.spoken == ["Hello there.", "Second one."]  # spoken via the fallback
+    assert [e[1] for e in fb.log if e[0] == "speak"] == ["Hello there.", "Second one."]
+    assert errors and "using the local voice" in errors[0]
+
+
+def test_speaker_survives_when_both_voices_fail():
+    class BadTTS:
+        name = "bad"
+
+        def speak(self, text):
+            raise RuntimeError("down")
+
+    errors = []
+    sp = Speaker(BadTTS(), fallback=BadTTS(), on_error=errors.append)
+    reply = sp.speak_stream(iter(["One. Two."]))  # must not raise
+    assert reply == "One. Two." and sp.spoken == []
+    assert any("also failed" in e for e in errors)
+
+
+def test_make_speaker_adds_local_fallback_for_elevenlabs():
+    from poyi.voice.assemble import make_speaker
+
+    sp = make_speaker(Settings(tts="elevenlabs", elevenlabs_key="k", elevenlabs_voice="v", tts_voice="Moira"))
+    assert sp.tts.name == "elevenlabs" and sp.tts.model_id == "eleven_flash_v2_5"
+    assert sp.fallback is not None and sp.fallback.name == "say" and sp.fallback.voice == "Moira"
+    assert make_speaker(Settings()).fallback is None  # say primary needs no fallback
