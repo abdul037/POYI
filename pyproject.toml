@@ -8,9 +8,18 @@ version = "0.1.0"
 description = "Poyi - Prodigy Of Your Invention. A human-like, highly intelligent companion."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "anthropic>=1.4.0",
+]
 
 [project.optional-dependencies]
+voice = [
+  "sounddevice>=0.5",
+  "faster-whisper>=1.1",
+]
+menubar = [
+  "rumps>=0.4",
+]
 dev = [
   "pytest>=8.0.0",
 ]
@@ -18,8 +27,8 @@ dev = [
 [project.scripts]
 poyi = "poyi.cli:main"
 
-[tool.setuptools]
-packages = ["poyi"]
+[tool.setuptools.packages.find]
+include = ["poyi*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
